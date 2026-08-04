@@ -67,6 +67,7 @@
   --weight-regular:  400;
   --weight-medium:   500;
   --weight-semibold: 600;
+  --weight-bold:     700;
 
   /* ── Spacing Scale (4px base) ── */
   --space-1:  4px;
@@ -84,12 +85,14 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-full: 9999px;
 
   /* ── Shadows (subtle, purposeful) ── */
   --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-md:  0 2px 8px -2px rgb(0 0 0 / 0.08), 0 1px 3px -1px rgb(0 0 0 / 0.06);
   --shadow-lg:  0 8px 24px -4px rgb(0 0 0 / 0.10), 0 2px 8px -2px rgb(0 0 0 / 0.06);
+  --shadow-xl:  0 16px 48px -8px rgb(0 0 0 / 0.14), 0 4px 16px -4px rgb(0 0 0 / 0.08);
 
   /* ── Focus Ring ── */
   --focus-ring: 0 0 0 2px rgb(var(--bg-canvas)), 0 0 0 4px rgb(var(--accent) / 0.5);
@@ -97,6 +100,7 @@
   /* ── Transitions ── */
   --transition-fast: 150ms ease-out;
   --transition-base: 200ms ease-out;
+  --transition-slow: 300ms ease-out;
 }
 
 /* ── Dark Mode ── */

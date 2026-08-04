@@ -103,3 +103,50 @@
 - Assessment-service: SecurityConfig permitAll, Kafka disabled, timezone UTC, Flyway migrations V1+V2
 - Frontend: unused variable warnings fixed, Playwright config updated
 - Page objects: placeholder-based selectors, strict mode violation fixes
+
+### Cycle 5: Security Fix + UI Overhaul (06:25 - 06:55)
+
+**Security:**
+- Added JwtAuthenticationFilter to assessment-service
+- SecurityConfig now requires authentication for HR/TM endpoints
+- Candidate endpoints (start, answer, code, submit, proctoring, GET questions) remain public
+- Added jjwt dependencies to assessment-service pom.xml
+- Added JWT secret config to assessment-service application.yml
+
+**UI Overhaul (professional design):**
+- Installed lucide-react for icons
+- index.html: added Inter font, meta description, professional title
+- tokens.css: added weight-bold, radius-xl, shadow-xl, transition-slow
+- tailwind.config.ts: added xl radius and shadow
+- GlassInput: auto-generated id for label association
+- Sidebar: logo with icon, section labels, help card at bottom, nav icons
+- TopNav: user avatar, logout icon, page title
+- AppShell: bg-canvas on main, wider padding
+- LoginPage: split-screen with branding panel (features list), professional form
+- RegisterPage: split-screen with branding panel, loading state, role labels
+- DashboardPage: stat cards with icons, account info cards with icons
+- HRDashboardPage: icon buttons, loading spinner, tab icons
+- CandidateInstructionsPage: header with branding, rule icons, system check icons, loading state
+- Updated E2E page objects (LoginPage, RegisterPage) to match new placeholders
+
+**E2E Tests: 16/16 passed (40.6s)**
+
+**Files changed:**
+- `securecode-platform/assessment-service/src/main/java/ai/securecode/assessment/config/JwtAuthenticationFilter.java` — new JWT filter
+- `securecode-platform/assessment-service/src/main/java/ai/securecode/assessment/config/SecurityConfig.java` — JWT auth + public candidate endpoints
+- `securecode-platform/assessment-service/pom.xml` — added jjwt dependencies
+- `securecode-platform/assessment-service/src/main/resources/application.yml` — JWT secret
+- `securecode-web/index.html` — font, meta, title
+- `securecode-web/src/styles/tokens.css` — new tokens
+- `securecode-web/tailwind.config.ts` — xl radius/shadow
+- `securecode-web/src/components/ui/GlassInput.tsx` — auto id
+- `securecode-web/src/components/layout/Sidebar.tsx` — icons, branding, help card
+- `securecode-web/src/components/layout/TopNav.tsx` — avatar, logout icon
+- `securecode-web/src/components/layout/AppShell.tsx` — simplified
+- `securecode-web/src/pages/LoginPage.tsx` — split-screen professional design
+- `securecode-web/src/pages/RegisterPage.tsx` — split-screen professional design
+- `securecode-web/src/pages/DashboardPage.tsx` — stat cards, icon cards
+- `securecode-web/src/pages/HRDashboardPage.tsx` — icon buttons, spinner, tab icons
+- `securecode-web/src/pages/CandidateInstructionsPage.tsx` — header, rule icons, system check
+- `securecode-web/e2e/pages/LoginPage.ts` — updated password placeholder
+- `securecode-web/e2e/pages/RegisterPage.ts` — updated org name + password placeholders

@@ -8,7 +8,7 @@ export class RegisterPage {
   }
 
   async fillOrgName(name: string) {
-    await this.page.getByPlaceholder('Acme Corp').fill(name);
+    await this.page.getByPlaceholder('Acme Corporation').fill(name);
   }
 
   async fillEmail(email: string) {
@@ -16,7 +16,7 @@ export class RegisterPage {
   }
 
   async fillPassword(password: string) {
-    await this.page.getByPlaceholder('At least 8 characters').fill(password);
+    await this.page.getByPlaceholder('Create a strong password').fill(password);
   }
 
   async selectRole(role: string) {

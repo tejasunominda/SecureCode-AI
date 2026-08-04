@@ -4,6 +4,7 @@ import { assessmentApi, type ApplicantDTO, type SessionReportDTO } from '@/lib/a
 import { GlassButton, GlassInput, GlassBadge, GlassTable, GlassModal, GlassSelect } from '@/components/ui';
 import { toast } from '@/components/ui/toast/useToastStore';
 import type { GlassTableColumn } from '@/components/ui';
+import { UserPlus, Check, X, Send, Users, FileText } from 'lucide-react';
 
 const STATUS_TONE: Record<string, "neutral" | "success" | "warning" | "danger" | "info"> = {
     applied: "neutral",
@@ -145,9 +146,11 @@ export default function HRDashboardPage() {
                     {row.status === 'applied' && (
                         <>
                             <GlassButton size="sm" variant="secondary" onClick={() => handleShortlist(row.id)}>
+                                <Check className="h-3.5 w-3.5" />
                                 Shortlist
                             </GlassButton>
                             <GlassButton size="sm" variant="ghost" onClick={() => handleReject(row.id)}>
+                                <X className="h-3.5 w-3.5" />
                                 Reject
                             </GlassButton>
                         </>
@@ -161,6 +164,7 @@ export default function HRDashboardPage() {
                                 setShowLinkModal(true);
                             }}
                         >
+                            <Send className="h-3.5 w-3.5" />
                             Send Test
                         </GlassButton>
                     )}
@@ -234,39 +238,44 @@ export default function HRDashboardPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-semibold text-text-primary">HR Dashboard</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-text-primary">HR Dashboard</h1>
                     <p className="mt-1 text-sm text-text-secondary">Manage applicants and assessment sessions</p>
                 </div>
                 <GlassButton variant="primary" onClick={() => setShowAddModal(true)}>
+                    <UserPlus className="h-4 w-4" />
                     Add Applicant
                 </GlassButton>
             </div>
 
-            <div className="flex gap-2 border-b border-border-subtle pb-px">
+            <div className="flex gap-1 border-b border-border-subtle">
                 <button
-                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                         activeTab === 'applicants'
                             ? 'border-b-2 border-accent text-text-primary'
                             : 'text-text-secondary hover:text-text-primary'
                     }`}
                     onClick={() => setActiveTab('applicants')}
                 >
+                    <Users className="h-4 w-4" />
                     Applicants ({applicants.length})
                 </button>
                 <button
-                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                         activeTab === 'sessions'
                             ? 'border-b-2 border-accent text-text-primary'
                             : 'text-text-secondary hover:text-text-primary'
                     }`}
                     onClick={() => setActiveTab('sessions')}
                 >
+                    <FileText className="h-4 w-4" />
                     Sessions ({sessions.length})
                 </button>
             </div>
 
             {loading ? (
-                <div className="py-12 text-center text-text-muted">Loading...</div>
+                <div className="flex items-center justify-center py-16">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                </div>
             ) : activeTab === 'applicants' ? (
                 <GlassTable
                     columns={applicantColumns}

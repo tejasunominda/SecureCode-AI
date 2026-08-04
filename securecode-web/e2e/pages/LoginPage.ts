@@ -16,7 +16,7 @@ export class LoginPage {
   }
 
   async fillPassword(password: string) {
-    await this.page.getByPlaceholder('••••••••').fill(password);
+    await this.page.getByPlaceholder('Enter your password').fill(password);
   }
 
   async submit() {
