@@ -20,7 +20,7 @@ export class CandidateInstructionsPage {
   }
 
   async expectError() {
-    await expect(this.page.getByText(/Failed to start test|Invalid|expired/i)).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByText(/Failed to start test|Invalid|expired/i).first()).toBeVisible({ timeout: 10000 });
   }
 
   async expectNavigatedToTest() {

@@ -40,3 +40,20 @@
 - `securecode-web/playwright.config.ts` — updated port to 5175
 - `securecode-web/e2e/pages/*.ts` — page objects with placeholder-based selectors
 - `securecode-web/e2e/tests/applicant-intake.spec.ts` — 5 E2E tests for applicant intake feature
+
+### Cycle 2: Assessment Link Generation + Candidate Test Start (05:55 - 06:05)
+
+**Added:**
+- Flyway V2 migration seeding default assessment template (`a0000000-0000-0000-0000-000000000001`)
+- E2E tests for link generation UI flow and candidate test start
+
+**E2E Tests (4/4 passed, 9/9 total):**
+1. HR shortlists applicant, generates link via UI, candidate opens link and starts test via UI
+2. Candidate sees error for invalid token
+3. Backend API: generate link and start test via API
+4. Cannot start test with already-used link
+
+**Files changed:**
+- `securecode-platform/assessment-service/src/main/resources/db/migration/V2__seed_default_template.sql` — default template seed
+- `securecode-web/e2e/tests/assessment-link.spec.ts` — 4 E2E tests for link generation + candidate start
+- `securecode-web/e2e/pages/CandidateInstructionsPage.ts` — fixed strict mode violation in expectError
