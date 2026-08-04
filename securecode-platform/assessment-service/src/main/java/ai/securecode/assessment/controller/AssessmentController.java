@@ -100,6 +100,14 @@ public class AssessmentController {
         return ResponseEntity.ok(service.recordProctoringEvent(sessionId, eventType));
     }
 
+    @PostMapping("/sessions/{sessionId}/proctoring/detailed")
+    public ResponseEntity<ProctoringEvent> recordDetailedProctoringEvent(
+            @PathVariable UUID sessionId,
+            @RequestBody ProctoringEventRequest req) {
+        return ResponseEntity.ok(service.recordProctoringEvent(
+                sessionId, req.eventType(), req.screenshotData(), req.audioData(), req.detail()));
+    }
+
     // ─── HR/Technical Manager: Question Bank ───
 
     @PostMapping("/questions")

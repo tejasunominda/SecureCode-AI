@@ -208,6 +208,10 @@ public class AssessmentService {
     // ─── Proctoring Events ───
 
     public ProctoringEvent recordProctoringEvent(UUID sessionId, String eventType) {
+        return recordProctoringEvent(sessionId, eventType, null, null, null);
+    }
+
+    public ProctoringEvent recordProctoringEvent(UUID sessionId, String eventType, String screenshotData, String audioData, String detail) {
         AssessmentSession session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND, "Session not found"));
 
@@ -218,6 +222,9 @@ public class AssessmentService {
         event.setSessionId(sessionId);
         event.setEventType(eventType);
         event.setWarningNumber(newWarningNumber);
+        event.setScreenshotData(screenshotData);
+        event.setAudioData(audioData);
+        event.setDetail(detail);
         proctoringEventRepo.save(event);
 
         if ("face_lost".equals(eventType) || "multi_face".equals(eventType)) {

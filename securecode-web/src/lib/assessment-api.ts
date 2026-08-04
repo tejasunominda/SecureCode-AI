@@ -181,6 +181,12 @@ export const assessmentApi = {
             method: 'POST',
         }),
 
+    recordDetailedProctoringEvent: (sessionId: string, data: { eventType: string; screenshotData?: string; audioData?: string; detail?: string }) =>
+        assessmentRequest(`/api/v1/assessment/sessions/${sessionId}/proctoring/detailed`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
     // Questions
     createQuestion: (orgId: string, userId: string, data: { type: string; body: string; optionA?: string; optionB?: string; optionC?: string; optionD?: string; correctOption?: string; difficulty?: string; tags?: string; testCases?: string }) =>
         assessmentRequest<QuestionDTO>('/api/v1/assessment/questions', {

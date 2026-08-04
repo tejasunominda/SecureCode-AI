@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { assessmentApi, type QuestionDTO } from '@/lib/assessment-api';
-import { GlassCard, GlassButton, GlassBadge } from '@/components/ui';
+import { GlassCard, GlassButton } from '@/components/ui';
 import { toast } from '@/components/ui/toast/useToastStore';
+import { useProctoring } from '@/hooks/useProctoring';
+import { ShieldCheck, AlertTriangle, Camera, CameraOff, Mic, MicOff, Eye } from 'lucide-react';
 
 const SECTIONS = ['aptitude', 'reasoning', 'coding'] as const;
 type Section = typeof SECTIONS[number];
@@ -37,12 +39,18 @@ export default function CandidateCodingPage() {
     const [timeLeft, setTimeLeft] = useState(SECTION_DURATIONS[currentSection] ?? 900);
     const [submitting, setSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [proctorWarnings, setProctorWarnings] = useState(0);
     const [showProctorPreview, setShowProctorPreview] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const streamRef = useRef<MediaStream | null>(null);
     const answersRef = useRef<Record<string, string>>({});
-    const tabSwitchCount = useRef(0);
+
+    const proctoring = useProctoring({
+        sessionId: sessionId ?? '',
+        videoRef,
+        enabled: !!sessionId,
+        onTerminate: () => {
+            navigate(`/test/${sessionId}/terminated`);
+        },
+    });
 
     answersRef.current = answers;
 
@@ -80,53 +88,6 @@ export default function CandidateCodingPage() {
         }, 1000);
         return () => clearInterval(timer);
     }, [currentSection]);
-
-    // Camera proctoring
-    useEffect(() => {
-        let mounted = true;
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                if (!mounted) {
-                    stream.getTracks().forEach(t => t.stop());
-                    return;
-                }
-                streamRef.current = stream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                }
-            } catch {
-                toast.warning('Camera access denied. Proctoring may flag your session.');
-            }
-        }
-        startCamera();
-        return () => {
-            mounted = false;
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
-            }
-        };
-    }, []);
-
-    // Tab switch detection
-    useEffect(() => {
-        const handleVisibility = async () => {
-            if (document.hidden && sessionId) {
-                tabSwitchCount.current += 1;
-                try {
-                    await assessmentApi.recordProctoringEvent(sessionId, 'tab_switch');
-                } catch { /* ignore */ }
-                setProctorWarnings(prev => prev + 1);
-                toast.danger(`Tab switch warning ${tabSwitchCount.current}/2. One more will terminate your test.`);
-                if (tabSwitchCount.current >= 2) {
-                    toast.danger('Test terminated: Too many tab switches.');
-                    navigate(`/test/${sessionId}/terminated`);
-                }
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibility);
-        return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, [sessionId, navigate]);
 
     const handleAnswerSelect = useCallback((questionId: string, option: string) => {
         setAnswers(prev => ({ ...prev, [questionId]: option }));
@@ -218,10 +179,11 @@ export default function CandidateCodingPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
-                    {proctorWarnings > 0 && (
-                        <GlassBadge tone="warning">
-                            {proctorWarnings} warning{proctorWarnings !== 1 ? 's' : ''}
-                        </GlassBadge>
+                    {proctoring.warnings > 0 && (
+                        <div className="flex items-center gap-1.5 rounded-md bg-warning-bg px-2.5 py-1">
+                            <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                            <span className="text-xs font-medium text-warning">{proctoring.warnings} warning{proctoring.warnings !== 1 ? 's' : ''}</span>
+                        </div>
                     )}
                     <div className={`flex items-center gap-2 ${timeLeft < 60 ? 'text-danger' : 'text-text-secondary'}`}>
                         <span className="text-sm font-medium">{formatTime(timeLeft)}</span>
@@ -263,46 +225,134 @@ export default function CandidateCodingPage() {
                 </main>
 
                 {/* Proctoring Sidebar */}
-                <aside className="flex w-64 flex-col border-l border-border-subtle bg-surface">
-                    <div className="border-b border-border-subtle p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Proctoring</p>
+                <aside className="flex w-72 flex-col border-l border-border-subtle bg-surface">
+                    <div className="flex items-center gap-2 border-b border-border-subtle p-4">
+                        <ShieldCheck className="h-4 w-4 text-accent" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">AI Proctoring</p>
                     </div>
+
+                    {/* Camera Feed */}
                     <div className="p-4">
-                        <div className="relative overflow-hidden rounded-md border border-border-subtle bg-surface-2">
-                            {showProctorPreview && videoRef && (
+                        <div className="relative overflow-hidden rounded-lg border border-border-subtle bg-surface-2">
+                            {showProctorPreview && (
                                 <video
                                     ref={videoRef}
                                     autoPlay
                                     muted
                                     playsInline
-                                    className="h-36 w-full object-cover"
+                                    className="h-40 w-full object-cover"
                                 />
                             )}
                             {!showProctorPreview && (
-                                <div className="flex h-36 items-center justify-center">
-                                    <span className="text-xs text-text-muted">Camera off</span>
+                                <div className="flex h-40 flex-col items-center justify-center gap-2">
+                                    <CameraOff className="h-6 w-6 text-text-muted" />
+                                    <span className="text-xs text-text-muted">Camera hidden</span>
+                                </div>
+                            )}
+                            {/* Face status overlay */}
+                            {showProctorPreview && proctoring.cameraActive && (
+                                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded bg-black/60 px-2 py-1">
+                                    {proctoring.faceStatus === 'ok' && (
+                                        <>
+                                            <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                                            <span className="text-[10px] font-medium text-white">Face detected</span>
+                                        </>
+                                    )}
+                                    {proctoring.faceStatus === 'no_face' && (
+                                        <>
+                                            <div className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
+                                            <span className="text-[10px] font-medium text-white">No face!</span>
+                                        </>
+                                    )}
+                                    {proctoring.faceStatus === 'multi_face' && (
+                                        <>
+                                            <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
+                                            <span className="text-[10px] font-medium text-white">Multiple faces!</span>
+                                        </>
+                                    )}
+                                    {proctoring.faceStatus === 'loading' && (
+                                        <>
+                                            <div className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                                            <span className="text-[10px] font-medium text-white">Loading AI...</span>
+                                        </>
+                                    )}
+                                    {proctoring.faceStatus === 'camera_error' && (
+                                        <>
+                                            <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                            <span className="text-[10px] font-medium text-white">Camera error</span>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
                         <button
                             onClick={() => setShowProctorPreview(!showProctorPreview)}
-                            className="mt-2 text-xs text-text-secondary hover:text-text-primary"
+                            className="mt-2 flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
                         >
+                            {showProctorPreview ? <CameraOff className="h-3 w-3" /> : <Camera className="h-3 w-3" />}
                             {showProctorPreview ? 'Hide preview' : 'Show preview'}
                         </button>
                     </div>
-                    <div className="border-t border-border-subtle p-4">
-                        <div className="space-y-2">
+
+                    {/* Status indicators */}
+                    <div className="border-t border-border-subtle p-4 space-y-3">
+                        <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-1.5 rounded-full bg-success" />
-                                <span className="text-xs text-text-secondary">Camera active</span>
+                                {proctoring.cameraActive ? (
+                                    <Camera className="h-3.5 w-3.5 text-success" />
+                                ) : (
+                                    <CameraOff className="h-3.5 w-3.5 text-danger" />
+                                )}
+                                <span className="text-xs text-text-secondary">Camera</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-1.5 rounded-full bg-success" />
-                                <span className="text-xs text-text-secondary">Tab focus detected</span>
-                            </div>
+                            <span className={`text-xs font-medium ${proctoring.cameraActive ? 'text-success' : 'text-danger'}`}>
+                                {proctoring.cameraActive ? 'Active' : 'Off'}
+                            </span>
                         </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                {proctoring.audioRecording ? (
+                                    <Mic className="h-3.5 w-3.5 text-success" />
+                                ) : (
+                                    <MicOff className="h-3.5 w-3.5 text-danger" />
+                                )}
+                                <span className="text-xs text-text-secondary">Microphone</span>
+                            </div>
+                            <span className={`text-xs font-medium ${proctoring.audioRecording ? 'text-success' : 'text-danger'}`}>
+                                {proctoring.audioRecording ? 'Recording' : 'Off'}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Eye className="h-3.5 w-3.5 text-accent" />
+                                <span className="text-xs text-text-secondary">Face detection</span>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">
+                                {proctoring.faceCount} face{proctoring.faceCount !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+
+                        {proctoring.warnings > 0 && (
+                            <div className="flex items-center gap-2 rounded-md bg-warning-bg p-2">
+                                <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                                <span className="text-xs text-warning">{proctoring.warnings} total warning{proctoring.warnings !== 1 ? 's' : ''}</span>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Last screenshot thumbnail */}
+                    {proctoring.lastScreenshot && (
+                        <div className="border-t border-border-subtle p-4">
+                            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-muted">Last snapshot</p>
+                            <img
+                                src={proctoring.lastScreenshot ?? undefined}
+                                alt="Proctoring snapshot"
+                                className="w-full rounded-md border border-border-subtle"
+                            />
+                        </div>
+                    )}
                 </aside>
             </div>
 

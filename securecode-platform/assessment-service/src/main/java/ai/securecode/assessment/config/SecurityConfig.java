@@ -35,6 +35,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/assessment/sessions/*/code").permitAll()
                         .requestMatchers("/api/v1/assessment/sessions/*/submit").permitAll()
                         .requestMatchers("/api/v1/assessment/sessions/*/proctoring").permitAll()
+                        .requestMatchers("/api/v1/assessment/sessions/*/proctoring/detailed").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/questions").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()

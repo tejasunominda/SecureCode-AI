@@ -21,6 +21,15 @@ public class ProctoringEvent {
     @Column(name = "warning_number")
     private int warningNumber;
 
+    @Column(name = "screenshot_data", length = 2147483647)
+    private String screenshotData;
+
+    @Column(name = "audio_data", length = 2147483647)
+    private String audioData;
+
+    @Column(name = "detail")
+    private String detail;
+
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt = Instant.now();
 
@@ -32,5 +41,11 @@ public class ProctoringEvent {
     public void setEventType(String eventType) { this.eventType = eventType; }
     public int getWarningNumber() { return warningNumber; }
     public void setWarningNumber(int warningNumber) { this.warningNumber = warningNumber; }
+    public String getScreenshotData() { return screenshotData; }
+    public void setScreenshotData(String screenshotData) { this.screenshotData = screenshotData; }
+    public String getAudioData() { return audioData; }
+    public void setAudioData(String audioData) { this.audioData = audioData; }
+    public String getDetail() { return detail; }
+    public void setDetail(String detail) { this.detail = detail; }
     public Instant getOccurredAt() { return occurredAt; }
 }
