@@ -1,0 +1,25 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: execution-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+execution:
+  docker-host: unix:///var/run/docker.sock
+  worker-pool-size: 4
+  default-cpu-limit: "1.0"
+  default-memory-limit-mb: 256
+  default-wall-clock-timeout-ms: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

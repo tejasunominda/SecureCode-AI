@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    gateway:
+      routes:
+        - id: identity-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/v1/auth/**,/v1/orgs/**
+        - id: assessment-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/v1/questions/**,/v1/assessments/**
+        - id: execution-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/v1/sessions/**/run,/v1/sessions/**/submit
+        - id: proctoring-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/v1/sessions/**/proctoring/**,/v1/sessions/**/risk-score
+        - id: reporting-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/v1/**/report/**,/v1/**/analytics/**
+        - id: notification-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/v1/**/webhooks/**
+
+security:
+  jwt:
+    issuer: securecode-ai
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

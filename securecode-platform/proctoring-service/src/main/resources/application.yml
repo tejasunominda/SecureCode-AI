@@ -1,0 +1,28 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: proctoring-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/securecode_proctoring
+    username: securecode
+    password: securecode
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092
+
+risk-engine:
+  half-life-minutes: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
