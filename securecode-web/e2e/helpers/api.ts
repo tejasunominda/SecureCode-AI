@@ -131,6 +131,70 @@ export async function makeHiringDecision(request: APIRequestContext, token: stri
   return res.json();
 }
 
+export async function createQuestion(request: APIRequestContext, token: string, orgId: string, userId: string, data: { type: string; body: string; optionA?: string; optionB?: string; optionC?: string; optionD?: string; correctOption?: string; difficulty?: string; testCases?: string }) {
+  const res = await request.post(`${ASSESSMENT_BASE}/api/v1/assessment/questions`, {
+    data,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Org-Id': orgId,
+      'X-User-Id': userId,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`Create question failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function publishQuestion(request: APIRequestContext, token: string, questionId: string) {
+  const res = await request.put(`${ASSESSMENT_BASE}/api/v1/assessment/questions/${questionId}/publish`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!res.ok()) {
+    throw new Error(`Publish question failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function submitAnswer(request: APIRequestContext, token: string, sessionId: string, questionId: string, selectedOption: string) {
+  const res = await request.post(`${ASSESSMENT_BASE}/api/v1/assessment/sessions/${sessionId}/answer`, {
+    data: { questionId, selectedOption },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`Submit answer failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function submitCode(request: APIRequestContext, token: string, sessionId: string, questionId: string, language: string, code: string) {
+  const res = await request.post(`${ASSESSMENT_BASE}/api/v1/assessment/sessions/${sessionId}/code`, {
+    data: { questionId, language, code },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`Submit code failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function submitTest(request: APIRequestContext, token: string, sessionId: string) {
+  const res = await request.post(`${ASSESSMENT_BASE}/api/v1/assessment/sessions/${sessionId}/submit`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!res.ok()) {
+    throw new Error(`Submit test failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 let emailCounter = 0;
 export function uniqueEmail(prefix = 'test'): string {
   emailCounter++;

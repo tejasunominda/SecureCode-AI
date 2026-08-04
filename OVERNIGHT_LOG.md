@@ -57,3 +57,19 @@
 - `securecode-platform/assessment-service/src/main/resources/db/migration/V2__seed_default_template.sql` — default template seed
 - `securecode-web/e2e/tests/assessment-link.spec.ts` — 4 E2E tests for link generation + candidate start
 - `securecode-web/e2e/pages/CandidateInstructionsPage.ts` — fixed strict mode violation in expectError
+
+### Cycle 3: Candidate Test Taking (MCQ + Coding) (06:05 - 06:15)
+
+**Added:**
+- API helpers: createQuestion, publishQuestion, submitAnswer, submitCode, submitTest
+- E2E tests for full candidate test flow through all 3 sections
+
+**E2E Tests (3/3 passed, 12/12 total):**
+1. Candidate completes full test: aptitude → reasoning → coding via UI (answers MCQs, writes code, submits)
+2. Backend API: submit answers and code via API, verify session report
+3. Candidate sees "No questions available" when no questions published
+
+**Files changed:**
+- `securecode-web/e2e/helpers/api.ts` — added createQuestion, publishQuestion, submitAnswer, submitCode, submitTest
+- `securecode-web/e2e/tests/candidate-test.spec.ts` — 3 E2E tests for candidate test taking
+- `securecode-web/e2e/pages/CandidateTestPage.ts` — fixed expectSubmitted to use heading role

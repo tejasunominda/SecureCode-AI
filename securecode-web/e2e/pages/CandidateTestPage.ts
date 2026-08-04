@@ -49,7 +49,7 @@ export class CandidateTestPage {
   }
 
   async expectSubmitted() {
-    await expect(this.page.getByText(/Test Submitted/i)).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByRole('heading', { name: 'Test Submitted' })).toBeVisible({ timeout: 10000 });
   }
 
   async expectTerminated() {
