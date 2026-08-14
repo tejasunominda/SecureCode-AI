@@ -1,0 +1,35 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: assessment-service-test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  datasource:
+    url: jdbc:h2:mem:test_assessment;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    database-platform: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+securecode:
+  jwt:
+    secret: Y2hhbmdlLW1lLXBsZWFzZS1pYW0tYS1zdXBlci1zZWNyZXQta2V5LWZvci1qd3QtaG1hYy1zaGEtMjU2LWJpdHM=
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

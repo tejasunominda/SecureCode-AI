@@ -138,14 +138,14 @@ class AssessmentServiceTest {
         visible.setHidden(false);
         visible.setInput("test");
 
-        when(testCaseRepo.findByQuestionIdAndIsHidden(questionId, false))
+        when(testCaseRepo.findByQuestionIdAndHidden(questionId, false))
                 .thenReturn(List.of(visible));
 
         List<TestCase> results = service.getTestCases(questionId, false);
 
         assertEquals(1, results.size());
         assertFalse(results.get(0).isHidden());
-        verify(testCaseRepo).findByQuestionIdAndIsHidden(questionId, false);
+        verify(testCaseRepo).findByQuestionIdAndHidden(questionId, false);
         verify(testCaseRepo, never()).findByQuestionId(any());
     }
 

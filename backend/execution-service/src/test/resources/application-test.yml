@@ -1,0 +1,25 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: execution-service-test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+execution:
+  docker:
+    enabled: false
+  wall-clock-timeout-ms: 10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

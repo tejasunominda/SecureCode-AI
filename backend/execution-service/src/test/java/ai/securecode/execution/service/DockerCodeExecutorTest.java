@@ -18,7 +18,7 @@ class DockerCodeExecutorTest {
 
     @Test
     void executeRequest_recordFieldsAreAccessible() {
-        ExecuteRequest req = new ExecuteRequest("python", "print('hello')", null);
+        ExecuteRequest req = new ExecuteRequest("python", "print('hello')", null, null, null, null);
         assertEquals("python", req.language());
         assertEquals("print('hello')", req.code());
         assertNull(req.stdin());

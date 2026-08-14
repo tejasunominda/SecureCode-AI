@@ -1,0 +1,20 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: notification-service-test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  mail:
+    host: localhost
+    port: 3025
+    username: test
+    password: test
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
