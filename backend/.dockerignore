@@ -1,0 +1,7 @@
+# .dockerignore for Spring Boot services
+target/
+*.log
+.git/
+.idea/
+.vscode/
+*.iml

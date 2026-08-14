@@ -1,0 +1,71 @@
+{
+  "annotations": { "list": [] },
+  "title": "SecureCode AI - JVM & HTTP Overview",
+  "uid": "securecode-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["securecode", "jvm", "http"],
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "title": "HTTP Request Rate (req/s)",
+      "type": "graph",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"identity-service|assessment-service\"}[1m])) by (application)",
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "title": "HTTP Request Latency (p95)",
+      "type": "graph",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=~\"identity-service|assessment-service\"}[5m])) by (le, application))",
+          "legendFormat": "{{application}} p95"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "title": "JVM Memory Used",
+      "type": "graph",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(jvm_memory_used_bytes{application=~\"identity-service|assessment-service\"}) by (application)",
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "title": "HikariCP Active Connections",
+      "type": "graph",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{application=~\"identity-service|assessment-service\"}",
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "title": "HTTP 5xx Errors",
+      "type": "graph",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"identity-service|assessment-service\",status=~\"5..\"}[1m])) by (application)",
+          "legendFormat": "{{application}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 }
+    }
+  ]
+}

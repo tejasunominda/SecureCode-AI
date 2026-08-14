@@ -1,0 +1,28 @@
+# Shared Dockerfile for all Spring Boot microservices.
+# Build arg SERVICE_NAME selects which service JAR to copy.
+FROM eclipse-temurin:21-jdk AS builder
+
+WORKDIR /build
+COPY pom.xml .
+COPY common/ common/
+COPY api-gateway/ api-gateway/
+COPY identity-service/ identity-service/
+COPY assessment-service/ assessment-service/
+COPY execution-service/ execution-service/
+COPY proctoring-service/ proctoring-service/
+COPY reporting-service/ reporting-service/
+COPY notification-service/ notification-service/
+
+RUN --mount=type=cache,target=/root/.m2 ./mvnw -q -pl ${SERVICE_NAME} -am package -DskipTests || \
+    mvn -q -pl ${SERVICE_NAME} -am package -DskipTests
+
+FROM eclipse-temurin:21-jre
+
+ARG SERVICE_NAME
+ENV SERVICE_NAME=${SERVICE_NAME}
+
+WORKDIR /app
+COPY --from=builder /build/${SERVICE_NAME}/target/*.jar /app/app.jar
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

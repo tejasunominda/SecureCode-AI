@@ -1,0 +1,35 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: notification-service
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+  mail:
+    host: localhost
+    port: 1025
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+notification:
+  sms:
+    enabled: false
+    twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
+    twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
+    twilio-from-number: ${TWILIO_FROM_NUMBER:}
+  push:
+    enabled: false
+    fcm-server-key: ${FCM_SERVER_KEY:}
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+  teams:
+    webhook-url: ${TEAMS_WEBHOOK_URL:}
+  from-email: noreply@securecode.ai

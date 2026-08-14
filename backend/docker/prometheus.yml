@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "api-gateway"
+    static_configs:
+      - targets: ["api-gateway:8080"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "identity-service"
+    static_configs:
+      - targets: ["identity-service:8081"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "assessment-service"
+    static_configs:
+      - targets: ["assessment-service:8082"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "execution-service"
+    static_configs:
+      - targets: ["execution-service:8083"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "proctoring-service"
+    static_configs:
+      - targets: ["proctoring-service:8084"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "reporting-service"
+    static_configs:
+      - targets: ["reporting-service:8085"]
+    metrics_path: "/actuator/prometheus"
+
+  - job_name: "notification-service"
+    static_configs:
+      - targets: ["notification-service:8086"]
+    metrics_path: "/actuator/prometheus"

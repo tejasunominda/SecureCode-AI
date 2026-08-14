@@ -1,0 +1,130 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    gateway:
+      default-filters:
+        - JwtAuthFilter
+        - name: RequestRateLimiter
+          args:
+            key-resolver: "#{@userKeyResolver}"
+            redis-rate-limiter: "#{@apiRateLimiter}"
+      routes:
+        - id: identity-service
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: identity-service
+        - id: identity-audit
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: identity-service
+        - id: assessment-service
+          uri: ${ASSESSMENT_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/assessment/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: assessment-service
+        - id: execution-service
+          uri: ${EXECUTION_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/execution/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: execution-service
+        - id: proctoring-service
+          uri: ${PROCTORING_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/proctoring/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: proctoring-service
+        - id: proctoring-websocket
+          uri: ${PROCTORING_SERVICE_WS_URL:ws://localhost:8084}
+          predicates:
+            - Path=/ws/**
+        - id: reporting-service
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/reporting/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: reporting-service
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notification-service
+
+securecode:
+  jwt:
+    secret: ${SECURECODE_JWT_SECRET}
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 5
+        sliding-window-type: COUNT_BASED
+    instances:
+      identity-service:
+        base-config: default
+      assessment-service:
+        base-config: default
+      execution-service:
+        base-config: default
+      proctoring-service:
+        base-config: default
+      reporting-service:
+        base-config: default
+      notification-service:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 10s
+    instances:
+      identity-service:
+        base-config: default
+      assessment-service:
+        base-config: default
+      execution-service:
+        base-config: default
+      proctoring-service:
+        base-config: default
+      reporting-service:
+        base-config: default
+      notification-service:
+        base-config: default
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
