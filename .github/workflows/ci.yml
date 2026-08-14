@@ -72,7 +72,7 @@ jobs:
         run: npm run build
       - name: Run unit tests
         working-directory: frontend
-        run: npm test -- --passWithNoTests
+        run: npx vitest run --passWithNoTests
 
   e2e-tests:
     name: E2E Tests
