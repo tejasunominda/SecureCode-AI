@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 env:
   SECURECODE_JWT_SECRET: ${{ secrets.SECURECODE_JWT_SECRET }}
@@ -50,7 +50,7 @@ jobs:
           PGPASSWORD=securecode psql -h localhost -U securecode -c "CREATE DATABASE securecode_proctoring;"
           PGPASSWORD=securecode psql -h localhost -U securecode -c "CREATE DATABASE securecode_reporting;"
       - name: Build with Maven
-        working-directory: securecode-platform
+        working-directory: backend
         run: mvn -B verify -DskipTests
 
   frontend-build-test:
@@ -63,15 +63,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: securecode-web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
-        working-directory: securecode-web
+        working-directory: frontend
         run: npm ci
       - name: Build
-        working-directory: securecode-web
+        working-directory: frontend
         run: npm run build
       - name: Run unit tests
-        working-directory: securecode-web
+        working-directory: frontend
         run: npm test -- --passWithNoTests
 
   e2e-tests:
@@ -108,41 +108,41 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: securecode-web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - name: Create databases
         run: |
           PGPASSWORD=securecode psql -h localhost -U securecode -c "CREATE DATABASE securecode_identity;"
           PGPASSWORD=securecode psql -h localhost -U securecode -c "CREATE DATABASE securecode_assessment;"
       - name: Build backend
-        working-directory: securecode-platform
+        working-directory: backend
         run: mvn -B package -DskipTests
       - name: Start identity service
         env:
           SECURECODE_JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1jaS1jZC1waXBlbGluZS1oZWFsdGgtY2hlY2tz
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/securecode_identity
         run: |
-          java -jar securecode-platform/identity-service/target/identity-service-*.jar &
+          java -jar backend/identity-service/target/identity-service-*.jar &
           sleep 15
       - name: Start assessment service
         env:
           SECURECODE_JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1jaS1jZC1waXBlbGluZS1oZWFsdGgtY2hlY2tz
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/securecode_assessment
         run: |
-          java -jar securecode-platform/assessment-service/target/assessment-service-*.jar &
+          java -jar backend/assessment-service/target/assessment-service-*.jar &
           sleep 15
       - name: Install frontend dependencies
-        working-directory: securecode-web
+        working-directory: frontend
         run: npm ci
       - name: Install Playwright
-        working-directory: securecode-web
+        working-directory: frontend
         run: npx playwright install --with-deps chromium
       - name: Start frontend dev server
-        working-directory: securecode-web
+        working-directory: frontend
         run: |
           npx vite --port 5175 &
           sleep 10
       - name: Run Playwright tests
-        working-directory: securecode-web
+        working-directory: frontend
         env:
           SECURECODE_JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1jaS1jZC1waXBlbGluZS1oZWFsdGgtY2hlY2tz
         run: npx playwright test --reporter=list
@@ -151,7 +151,7 @@ jobs:
     name: Build Docker Images
     runs-on: ubuntu-latest
     needs: [e2e-tests]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 21
@@ -161,9 +161,9 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: Build backend JARs
-        working-directory: securecode-platform
+        working-directory: backend
         run: mvn -B package -DskipTests
       - name: Build identity service image
-        run: docker build -t securecode/identity-service:latest securecode-platform/identity-service/
+        run: docker build -t securecode/identity-service:latest backend/identity-service/
       - name: Build assessment service image
-        run: docker build -t securecode/assessment-service:latest securecode-platform/assessment-service/
+        run: docker build -t securecode/assessment-service:latest backend/assessment-service/

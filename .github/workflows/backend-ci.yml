@@ -2,13 +2,13 @@ name: Backend CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
     paths:
-      - "securecode-platform/**"
+      - "backend/**"
   pull_request:
-    branches: [main]
+    branches: [main, master]
     paths:
-      - "securecode-platform/**"
+      - "backend/**"
 
 jobs:
   build-and-test:
@@ -24,7 +24,7 @@ jobs:
           cache: "maven"
 
       - name: Build and test
-        working-directory: securecode-platform
+        working-directory: backend
         run: mvn -B verify
 
       - name: Upload test results
@@ -32,12 +32,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
-          path: securecode-platform/**/target/surefire-reports/
+          path: backend/**/target/surefire-reports/
 
   build-images:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     strategy:
       matrix:
         service:
@@ -57,8 +57,8 @@ jobs:
       - name: Build ${{ matrix.service }} image
         uses: docker/build-push-action@v6
         with:
-          context: securecode-platform
-          file: securecode-platform/Dockerfile.service
+          context: backend
+          file: backend/Dockerfile.service
           build-args: SERVICE_NAME=${{ matrix.service }}
           tags: securecode/${{ matrix.service }}:${{ github.sha }}
           push: false
