@@ -53,7 +53,7 @@ public class DockerCodeExecutor {
     }
 
     public ExecuteResponse execute(ExecuteRequest req) {
-        return switch (req.language().toLowerCase()) {
+        ExecuteResponse rawResponse = switch (req.language().toLowerCase()) {
             case "python", "python3" -> executeInContainer(req, "python:3.12-slim", "python3", "/tmp/solution.py");
             case "javascript", "js" -> executeInContainer(req, "node:20-alpine", "node", "/tmp/solution.js");
             case "java" -> executeJavaInContainer(req);
@@ -61,6 +61,73 @@ public class DockerCodeExecutor {
             case "c" -> executeCompiledInContainer(req, "gcc:14-bookworm", "gcc", "-o", "/tmp/solution", "/tmp/solution.c");
             case "sql" -> executeSqlInContainer(req);
             default -> ExecuteResponse.error("Unsupported language: " + req.language());
+        };
+
+        if (req.judgeType() != null && !"exact".equalsIgnoreCase(req.judgeType()) && "completed".equals(rawResponse.status())) {
+            return applyCustomJudge(req, rawResponse);
+        }
+        return rawResponse;
+    }
+
+    private ExecuteResponse applyCustomJudge(ExecuteRequest req, ExecuteResponse rawResponse) {
+        String judgeType = req.judgeType();
+        String actual = rawResponse.stdout();
+        String expected = req.expectedOutput() != null ? req.expectedOutput() : "";
+
+        return switch (judgeType.toLowerCase()) {
+            case "token" -> {
+                String[] actualTokens = actual.trim().split("\\s+");
+                String[] expectedTokens = expected.trim().split("\\s+");
+                boolean passed = java.util.Arrays.equals(actualTokens, expectedTokens);
+                yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                        rawResponse.runtimeMs(), 0, "completed",
+                        passed ? null : "Token mismatch: expected " + expectedTokens.length + " tokens, got " + actualTokens.length);
+            }
+            case "regex" -> {
+                boolean passed = actual.trim().matches(expected.trim());
+                yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                        rawResponse.runtimeMs(), 0, "completed",
+                        passed ? null : "Regex mismatch: output does not match pattern");
+            }
+            case "custom" -> {
+                if (req.judgeCode() == null || req.judgeCode().isBlank()) {
+                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                            rawResponse.runtimeMs(), 0, "completed", "Custom judge code missing");
+                }
+                try {
+                    javax.script.ScriptEngine engine = new javax.script.ScriptEngineManager().getEngineByName("javascript");
+                    if (engine == null) {
+                        yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                                rawResponse.runtimeMs(), 0, "completed", "JavaScript engine not available for custom judge");
+                    }
+                    engine.eval(req.judgeCode());
+                    Object result = engine.eval("judge(" +
+                            java.util.Objects.requireNonNull(actual).replace("\\", "\\\\").replace("'", "\\'") +
+                            ", " +
+                            expected.replace("\\", "\\\\").replace("'", "\\'") + ")");
+                    boolean passed = Boolean.TRUE.equals(result);
+                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                            rawResponse.runtimeMs(), 0, "completed",
+                            passed ? null : "Custom judge rejected output");
+                } catch (Exception e) {
+                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                            rawResponse.runtimeMs(), 0, "completed", "Custom judge error: " + e.getMessage());
+                }
+            }
+            case "float_tolerance" -> {
+                try {
+                    double actualVal = Double.parseDouble(actual.trim());
+                    double expectedVal = Double.parseDouble(expected.trim());
+                    boolean passed = Math.abs(actualVal - expectedVal) < 1e-6;
+                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                            rawResponse.runtimeMs(), 0, "completed",
+                            passed ? null : "Float tolerance mismatch");
+                } catch (NumberFormatException e) {
+                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                            rawResponse.runtimeMs(), 0, "completed", "Float parse error: " + e.getMessage());
+                }
+            }
+            default -> rawResponse;
         };
     }
 
@@ -88,6 +155,7 @@ public class DockerCodeExecutor {
                     .withWorkingDir("/tmp")
                     .exec();
 
+            long startTime = System.nanoTime();
             dockerClient.startContainerCmd(container.getId()).exec();
 
             boolean finished = dockerClient.waitContainerCmd(container.getId())
@@ -100,6 +168,7 @@ public class DockerCodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             int waitResult =
                     dockerClient.waitContainerCmd(container.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
 
@@ -110,7 +179,7 @@ public class DockerCodeExecutor {
             dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
             cleanup(tmpDir);
 
-            return ExecuteResponse.success(stdout, stderr, exitCode, 0);
+            return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
             cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
@@ -169,6 +238,7 @@ public class DockerCodeExecutor {
                     .withWorkingDir("/tmp")
                     .exec();
 
+            long startTime = System.nanoTime();
             dockerClient.startContainerCmd(runContainer.getId()).exec();
             boolean finished = dockerClient.waitContainerCmd(runContainer.getId())
                     .exec(new WaitContainerResultCallback())
@@ -181,6 +251,7 @@ public class DockerCodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             int runResult =
                     dockerClient.waitContainerCmd(runContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
 
@@ -190,7 +261,7 @@ public class DockerCodeExecutor {
             dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
             cleanup(tmpDir);
 
-            return ExecuteResponse.success(stdout, stderr, runResult, 0);
+            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
         } catch (Exception e) {
             cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
@@ -256,6 +327,7 @@ public class DockerCodeExecutor {
                     .withWorkingDir("/tmp")
                     .exec();
 
+            long startTime = System.nanoTime();
             dockerClient.startContainerCmd(runContainer.getId()).exec();
             boolean finished = dockerClient.waitContainerCmd(runContainer.getId())
                     .exec(new WaitContainerResultCallback())
@@ -268,6 +340,7 @@ public class DockerCodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             int runResult =
                     dockerClient.waitContainerCmd(runContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
 
@@ -277,7 +350,7 @@ public class DockerCodeExecutor {
             dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
             cleanup(tmpDir);
 
-            return ExecuteResponse.success(stdout, stderr, runResult, 0);
+            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
         } catch (Exception e) {
             cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
@@ -305,6 +378,7 @@ public class DockerCodeExecutor {
                     .withHostConfig(hostConfig)
                     .exec();
 
+            long startTime = System.nanoTime();
             dockerClient.startContainerCmd(container.getId()).exec();
             boolean finished = dockerClient.waitContainerCmd(container.getId())
                     .exec(new WaitContainerResultCallback())
@@ -317,6 +391,7 @@ public class DockerCodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             int result =
                     dockerClient.waitContainerCmd(container.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
 
@@ -326,7 +401,7 @@ public class DockerCodeExecutor {
             dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
             cleanup(tmpDir);
 
-            return ExecuteResponse.success(stdout, stderr, result, 0);
+            return ExecuteResponse.success(stdout, stderr, result, runtimeMs);
         } catch (Exception e) {
             cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());

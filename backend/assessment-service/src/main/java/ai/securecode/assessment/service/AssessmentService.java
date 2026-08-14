@@ -35,6 +35,7 @@ public class AssessmentService {
     private final AssessmentRepository assessmentRepo;
     private final AssessmentQuestionRepository assessmentQuestionRepo;
     private final QuestionVersionHistoryRepository questionVersionHistoryRepo;
+    private final QuestionBankImportMapper importMapper;
 
     public AssessmentService(ApplicantRepository applicantRepo,
                              AssessmentTemplateRepository templateRepo,
@@ -49,7 +50,8 @@ public class AssessmentService {
                              TestCaseRepository testCaseRepo,
                              AssessmentRepository assessmentRepo,
                              AssessmentQuestionRepository assessmentQuestionRepo,
-                             QuestionVersionHistoryRepository questionVersionHistoryRepo) {
+                             QuestionVersionHistoryRepository questionVersionHistoryRepo,
+                             QuestionBankImportMapper importMapper) {
         this.applicantRepo = applicantRepo;
         this.templateRepo = templateRepo;
         this.linkRepo = linkRepo;
@@ -64,6 +66,7 @@ public class AssessmentService {
         this.assessmentRepo = assessmentRepo;
         this.assessmentQuestionRepo = assessmentQuestionRepo;
         this.questionVersionHistoryRepo = questionVersionHistoryRepo;
+        this.importMapper = importMapper;
     }
 
     // ─── Applicant Management ───
@@ -227,6 +230,20 @@ public class AssessmentService {
         response.setSelectedOption(req.selectedOption());
         boolean correct = req.selectedOption() != null && req.selectedOption().equals(question.getCorrectOption());
         response.setIsCorrect(correct);
+
+        if (correct) {
+            response.setScoreAwarded(java.math.BigDecimal.ONE);
+        } else if (req.selectedOption() != null && !req.selectedOption().isBlank()) {
+            java.math.BigDecimal neg = question.getNegativeMarks();
+            if (neg != null && neg.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                response.setScoreAwarded(neg.negate());
+            } else {
+                response.setScoreAwarded(java.math.BigDecimal.ZERO);
+            }
+        } else {
+            response.setScoreAwarded(java.math.BigDecimal.ZERO);
+        }
+
         return sectionResponseRepo.save(response);
     }
 
@@ -959,5 +976,113 @@ public class AssessmentService {
             results.add(new RunCodeResponse.TestCaseResult(input, expected, actual, passed, runtimeMs));
         }
         return results;
+    }
+
+    // ─── Question Bank Import Mapping (H.9) ───
+
+    public List<QuestionResponse> importMappedQuestions(UUID orgId, UUID createdBy, String format, String rawJson) {
+        QuestionBankImportMapper.SourceFormat sourceFormat;
+        try {
+            sourceFormat = QuestionBankImportMapper.SourceFormat.valueOf(format.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException("INVALID_FORMAT", HttpStatus.BAD_REQUEST,
+                    "Unsupported import format: " + format + ". Supported: HACKERRANK, CODESIGNAL, CODILITY, METTL, GENERIC_JSON");
+        }
+        List<CreateQuestionRequest> mapped = importMapper.map(rawJson, sourceFormat);
+        return bulkImportQuestions(orgId, createdBy, mapped);
+    }
+
+    // ─── Accommodation Support (H.5) ───
+
+    public AssessmentSession configureAccommodation(UUID sessionId, UUID approvedBy,
+                                                     AssessmentController.AccommodationRequest req) {
+        AssessmentSession session = sessionRepo.findById(sessionId)
+                .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND, "Session not found"));
+
+        if ("submitted".equals(session.getStatus()) || session.getStatus().startsWith("terminated")) {
+            throw new ApiException("SESSION_LOCKED", HttpStatus.BAD_REQUEST, "Cannot configure accommodation on a locked session");
+        }
+
+        if (req.timeMultiplier() != null) {
+            if (req.timeMultiplier() < 1.0 || req.timeMultiplier() > 3.0) {
+                throw new ApiException("INVALID_TIME_MULTIPLIER", HttpStatus.BAD_REQUEST,
+                        "Time multiplier must be between 1.0 and 3.0");
+            }
+            session.setTimeMultiplier(req.timeMultiplier());
+        }
+
+        if (req.proctoringLevelOverride() != null && !req.proctoringLevelOverride().isBlank()) {
+            String level = req.proctoringLevelOverride().toLowerCase();
+            if (!level.equals("none") && !level.equals("light") && !level.equals("standard") && !level.equals("strict")) {
+                throw new ApiException("INVALID_PROCTORING_LEVEL", HttpStatus.BAD_REQUEST,
+                        "Proctoring level must be one of: none, light, standard, strict");
+            }
+            session.setProctoringLevelOverride(level);
+        }
+
+        session.setAccommodationNotes(req.notes());
+        session.setAccommodationApprovedBy(approvedBy);
+        session.setAccommodationGrantedAt(Instant.now());
+        return sessionRepo.save(session);
+    }
+
+    // ─── Pre-Assessment Device-Class Check (FR-SEC-ENV-08, H.8) ───
+
+    public AssessmentController.DeviceCheckResponse performDeviceCheck(UUID sessionId, String userAgent) {
+        sessionRepo.findById(sessionId)
+                .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND, "Session not found"));
+
+        String ua = userAgent.toLowerCase();
+        String deviceClass;
+        boolean allowed;
+
+        if (ua.contains("mobile") || ua.contains("android") && !ua.contains("tablet") || ua.contains("iphone")) {
+            deviceClass = "mobile";
+            allowed = false;
+        } else if (ua.contains("ipad") || ua.contains("tablet") || ua.contains("android")) {
+            deviceClass = "tablet";
+            allowed = false;
+        } else {
+            deviceClass = "desktop";
+            allowed = true;
+        }
+
+        String message = allowed
+                ? "Device supported. You may proceed with the assessment."
+                : "Assessments require a desktop or laptop computer. Please switch to a supported device to continue.";
+
+        return new AssessmentController.DeviceCheckResponse(allowed, deviceClass, message);
+    }
+
+    // ─── Age-Gate & Biometric Consent (H.6) ───
+
+    public AssessmentController.ConsentResponse recordConsent(UUID sessionId,
+                                                               AssessmentController.ConsentRequest req) {
+        AssessmentSession session = sessionRepo.findById(sessionId)
+                .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND, "Session not found"));
+
+        if (!req.biometricConsent()) {
+            return new AssessmentController.ConsentResponse(false, false,
+                    "Biometric consent is required to proceed with proctored assessment.");
+        }
+
+        boolean guardianRequired = req.ageDeclared() != null && req.ageDeclared() < 18;
+
+        if (guardianRequired && !req.guardianConsent()) {
+            return new AssessmentController.ConsentResponse(false, true,
+                    "Parental/guardian consent is required for candidates under 18 before biometric capture.");
+        }
+
+        ProctoringEvent consentEvent = new ProctoringEvent();
+        consentEvent.setSessionId(sessionId);
+        consentEvent.setEventType("consent_recorded");
+        consentEvent.setWarningNumber(0);
+        consentEvent.setDetail(guardianRequired
+                ? "Biometric consent + guardian consent recorded (age: " + req.ageDeclared() + ")"
+                : "Biometric consent recorded");
+        proctoringEventRepo.save(consentEvent);
+
+        return new AssessmentController.ConsentResponse(true, guardianRequired,
+                guardianRequired ? "Consent recorded with guardian approval." : "Consent recorded.");
     }
 }

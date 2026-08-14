@@ -107,6 +107,7 @@ public class CodeExecutor {
             pb.directory(tmpDir.toFile());
             pb.redirectErrorStream(false);
 
+            long startTime = System.nanoTime();
             Process process = pb.start();
             if (req.stdin() != null && !req.stdin().isBlank()) {
                 try (OutputStream os = process.getOutputStream()) {
@@ -122,11 +123,12 @@ public class CodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             String stdout = readStream(process.getInputStream());
             String stderr = readStream(process.getErrorStream());
             int exitCode = process.exitValue();
             cleanup(tmpDir);
-            return ExecuteResponse.success(stdout, stderr, exitCode, 0);
+            return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }
@@ -142,6 +144,7 @@ public class CodeExecutor {
             pb.directory(tmpDir.toFile());
             pb.redirectErrorStream(false);
 
+            long startTime = System.nanoTime();
             Process process = pb.start();
             if (req.stdin() != null && !req.stdin().isBlank()) {
                 try (OutputStream os = process.getOutputStream()) {
@@ -157,11 +160,12 @@ public class CodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             String stdout = readStream(process.getInputStream());
             String stderr = readStream(process.getErrorStream());
             int exitCode = process.exitValue();
             cleanup(tmpDir);
-            return ExecuteResponse.success(stdout, stderr, exitCode, 0);
+            return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }
@@ -192,6 +196,7 @@ public class CodeExecutor {
             ProcessBuilder runPb = new ProcessBuilder("java", "Solution");
             runPb.directory(tmpDir.toFile());
             runPb.redirectErrorStream(false);
+            long startTime = System.nanoTime();
             Process process = runPb.start();
             if (req.stdin() != null && !req.stdin().isBlank()) {
                 try (OutputStream os = process.getOutputStream()) {
@@ -207,11 +212,12 @@ public class CodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             String stdout = readStream(process.getInputStream());
             String stderr = readStream(process.getErrorStream());
             int exitCode = process.exitValue();
             cleanup(tmpDir);
-            return ExecuteResponse.success(stdout, stderr, exitCode, 0);
+            return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }
@@ -256,6 +262,7 @@ public class CodeExecutor {
             ProcessBuilder runPb = new ProcessBuilder(runCmd.startsWith("./") ? runCmd : "./" + runCmd);
             runPb.directory(tmpDir.toFile());
             runPb.redirectErrorStream(false);
+            long startTime = System.nanoTime();
             Process process = runPb.start();
             if (req.stdin() != null && !req.stdin().isBlank()) {
                 try (OutputStream os = process.getOutputStream()) {
@@ -271,11 +278,12 @@ public class CodeExecutor {
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
             String stdout = readStream(process.getInputStream());
             String stderr = readStream(process.getErrorStream());
             int exitCode = process.exitValue();
             cleanup(tmpDir);
-            return ExecuteResponse.success(stdout, stderr, exitCode, 0);
+            return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }

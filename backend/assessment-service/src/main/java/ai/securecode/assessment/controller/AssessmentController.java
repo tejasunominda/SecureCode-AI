@@ -339,6 +339,18 @@ public class AssessmentController {
                 .body(csv);
     }
 
+    // ─── Question Bank Import Mapping (H.9) ───
+
+    @PostMapping("/questions/import-mapped")
+    public ResponseEntity<List<QuestionResponse>> importMappedQuestions(
+            @RequestHeader("X-Org-Id") UUID orgId,
+            @RequestHeader("X-User-Id") UUID createdBy,
+            @RequestParam String format,
+            @RequestBody String rawJson) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.importMappedQuestions(orgId, createdBy, format, rawJson));
+    }
+
     // ─── Runtime Metrics Per Test Case (FR-EDIT-05) ───
 
     @PostMapping("/sessions/{sessionId}/run-with-metrics")
@@ -347,4 +359,56 @@ public class AssessmentController {
             @Valid @RequestBody SubmitCodeRequest req) {
         return ResponseEntity.ok(service.runCodeWithMetrics(sessionId, req));
     }
+
+    // ─── Accommodation Support (H.5) ───
+
+    @PutMapping("/sessions/{sessionId}/accommodation")
+    public ResponseEntity<AssessmentSession> configureAccommodation(
+            @RequestHeader("X-User-Id") UUID approvedBy,
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody AccommodationRequest req) {
+        return ResponseEntity.ok(service.configureAccommodation(sessionId, approvedBy, req));
+    }
+
+    // ─── Pre-Assessment Device-Class Check (FR-SEC-ENV-08, H.8) ───
+
+    @GetMapping("/sessions/{sessionId}/device-check")
+    public ResponseEntity<DeviceCheckResponse> deviceCheck(
+            @PathVariable UUID sessionId,
+            @RequestParam String userAgent) {
+        return ResponseEntity.ok(service.performDeviceCheck(sessionId, userAgent));
+    }
+
+    // ─── Age-Gate & Biometric Consent (H.6) ───
+
+    @PostMapping("/sessions/{sessionId}/consent")
+    public ResponseEntity<ConsentResponse> recordConsent(
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody ConsentRequest req) {
+        return ResponseEntity.ok(service.recordConsent(sessionId, req));
+    }
+
+    public record AccommodationRequest(
+            Double timeMultiplier,
+            String proctoringLevelOverride,
+            String notes
+    ) {}
+
+    public record DeviceCheckResponse(
+            boolean allowed,
+            String deviceClass,
+            String message
+    ) {}
+
+    public record ConsentRequest(
+            boolean biometricConsent,
+            boolean guardianConsent,
+            Integer ageDeclared
+    ) {}
+
+    public record ConsentResponse(
+            boolean consentRecorded,
+            boolean guardianConsentRequired,
+            String message
+    ) {}
 }

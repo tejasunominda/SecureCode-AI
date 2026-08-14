@@ -38,6 +38,21 @@ public class AssessmentSession {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "time_multiplier")
+    private Double timeMultiplier;
+
+    @Column(name = "proctoring_level_override")
+    private String proctoringLevelOverride;
+
+    @Column(name = "accommodation_notes", columnDefinition = "TEXT")
+    private String accommodationNotes;
+
+    @Column(name = "accommodation_approved_by")
+    private java.util.UUID accommodationApprovedBy;
+
+    @Column(name = "accommodation_granted_at")
+    private Instant accommodationGrantedAt;
+
     public java.util.UUID getId() { return id; }
     public void setId(java.util.UUID id) { this.id = id; }
     public java.util.UUID getLinkId() { return linkId; }
@@ -57,4 +72,14 @@ public class AssessmentSession {
     public Instant getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
     public Instant getCreatedAt() { return createdAt; }
+    public Double getTimeMultiplier() { return timeMultiplier; }
+    public void setTimeMultiplier(Double timeMultiplier) { this.timeMultiplier = timeMultiplier; }
+    public String getProctoringLevelOverride() { return proctoringLevelOverride; }
+    public void setProctoringLevelOverride(String proctoringLevelOverride) { this.proctoringLevelOverride = proctoringLevelOverride; }
+    public String getAccommodationNotes() { return accommodationNotes; }
+    public void setAccommodationNotes(String accommodationNotes) { this.accommodationNotes = accommodationNotes; }
+    public java.util.UUID getAccommodationApprovedBy() { return accommodationApprovedBy; }
+    public void setAccommodationApprovedBy(java.util.UUID accommodationApprovedBy) { this.accommodationApprovedBy = accommodationApprovedBy; }
+    public Instant getAccommodationGrantedAt() { return accommodationGrantedAt; }
+    public void setAccommodationGrantedAt(Instant accommodationGrantedAt) { this.accommodationGrantedAt = accommodationGrantedAt; }
 }

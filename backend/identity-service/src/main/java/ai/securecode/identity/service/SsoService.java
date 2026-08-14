@@ -308,4 +308,35 @@ public class SsoService {
                 "orgId", orgId.toString()
         );
     }
+
+    public AuthResponse handleSamlAssertion(UUID orgId, String samlResponseB64) {
+        String email = extractEmailFromSamlResponse(samlResponseB64);
+        if (email == null || email.isBlank()) {
+            throw new ApiException("SAML_ASSERTION_INVALID", HttpStatus.UNAUTHORIZED,
+                    "Could not extract email from SAML assertion");
+        }
+        return provisionSsoUser(email, orgId, "saml");
+    }
+
+    private String extractEmailFromSamlResponse(String samlResponseB64) {
+        try {
+            byte[] decoded = java.util.Base64.getDecoder().decode(samlResponseB64);
+            String xml = new String(decoded, StandardCharsets.UTF_8);
+
+            int nameIdStart = xml.indexOf("<saml:NameID");
+            if (nameIdStart < 0) {
+                nameIdStart = xml.indexOf("<NameID");
+            }
+            if (nameIdStart < 0) return null;
+
+            int contentStart = xml.indexOf(">", nameIdStart) + 1;
+            int contentEnd = xml.indexOf("<", contentStart);
+            if (contentEnd <= contentStart) return null;
+
+            return xml.substring(contentStart, contentEnd).trim();
+        } catch (Exception e) {
+            throw new ApiException("SAML_DECODE_FAILED", HttpStatus.BAD_REQUEST,
+                    "Failed to decode SAML response: " + e.getMessage());
+        }
+    }
 }

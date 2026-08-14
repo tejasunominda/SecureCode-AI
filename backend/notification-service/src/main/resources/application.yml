@@ -4,6 +4,18 @@ server:
 spring:
   application:
     name: notification-service
+  datasource:
+    url: jdbc:h2:mem:notifications;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  h2:
+    console:
+      enabled: false
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -17,7 +29,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  metrics:
+    tags:
+      application: notification-service
 
 notification:
   sms:

@@ -1,6 +1,7 @@
 package ai.securecode.assessment.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -24,6 +25,9 @@ public class SectionResponse {
     @Column(name = "is_correct")
     private Boolean isCorrect;
 
+    @Column(name = "score_awarded", precision = 6, scale = 2)
+    private BigDecimal scoreAwarded;
+
     @Column(name = "answered_at", nullable = false, updatable = false)
     private Instant answeredAt = Instant.now();
 
@@ -37,5 +41,7 @@ public class SectionResponse {
     public void setSelectedOption(String selectedOption) { this.selectedOption = selectedOption; }
     public Boolean getIsCorrect() { return isCorrect; }
     public void setIsCorrect(Boolean isCorrect) { this.isCorrect = isCorrect; }
+    public BigDecimal getScoreAwarded() { return scoreAwarded; }
+    public void setScoreAwarded(BigDecimal scoreAwarded) { this.scoreAwarded = scoreAwarded; }
     public Instant getAnsweredAt() { return answeredAt; }
 }

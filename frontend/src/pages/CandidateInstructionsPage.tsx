@@ -46,6 +46,10 @@ export default function CandidateInstructionsPage() {
     const [faceModelLoading, setFaceModelLoading] = useState(true);
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
     const [tokenError, setTokenError] = useState<string | null>(null);
+    const [deviceCheck, setDeviceCheck] = useState<{ allowed: boolean; deviceClass: string; message: string } | null>(null);
+    const [ageDeclared, setAgeDeclared] = useState<number | null>(null);
+    const [guardianConsent, setGuardianConsent] = useState(false);
+    const [biometricConsent, setBiometricConsent] = useState(false);
 
     // Validate token on mount
     useEffect(() => {
@@ -80,6 +84,29 @@ export default function CandidateInstructionsPage() {
         return () => { cancelled = true; };
     }, [token]);
 
+    // Device-class check (FR-SEC-ENV-08, H.8)
+    useEffect(() => {
+        if (tokenValid !== true) return;
+        const ua = navigator.userAgent;
+        const uaLower = ua.toLowerCase();
+        let deviceClass = 'desktop';
+        let allowed = true;
+        if (uaLower.includes('mobile') || (uaLower.includes('android') && !uaLower.includes('tablet')) || uaLower.includes('iphone')) {
+            deviceClass = 'mobile';
+            allowed = false;
+        } else if (uaLower.includes('ipad') || uaLower.includes('tablet')) {
+            deviceClass = 'tablet';
+            allowed = false;
+        }
+        setDeviceCheck({
+            allowed,
+            deviceClass,
+            message: allowed
+                ? 'Device supported. You may proceed with the assessment.'
+                : 'Assessments require a desktop or laptop computer. Please switch to a supported device to continue.',
+        });
+    }, [tokenValid]);
+
     // Load picojs face detector on mount (model bundled locally, no external network calls)
     useEffect(() => {
         let cancelled = false;
@@ -101,6 +128,10 @@ export default function CandidateInstructionsPage() {
         checks.camera === 'success' &&
         checks.microphone === 'success' &&
         checks.faceCapture === 'success';
+
+    const deviceBlocked = deviceCheck !== null && !deviceCheck.allowed;
+    const guardianRequired = ageDeclared !== null && ageDeclared < 18;
+    const consentValid = biometricConsent && (!guardianRequired || guardianConsent);
 
     const requestMedia = async () => {
         setError(null);
@@ -212,8 +243,16 @@ export default function CandidateInstructionsPage() {
 
     const handleStart = async () => {
         if (!token) return;
+        if (deviceBlocked) {
+            toast.danger('Your device is not supported for assessments');
+            return;
+        }
         if (!allChecksPassed) {
             toast.danger('Please complete all proctoring checks before starting');
+            return;
+        }
+        if (!consentValid) {
+            toast.danger('Please provide all required consents before starting');
             return;
         }
         setStarting(true);
@@ -221,6 +260,22 @@ export default function CandidateInstructionsPage() {
         try {
             const session = await assessmentApi.startTest(token);
             localStorage.setItem('securecode_org_id', session.orgId);
+
+            const ASSESSMENT_BASE = import.meta.env.VITE_ASSESSMENT_API_BASE_URL ?? 'http://localhost:8082';
+            try {
+                await fetch(`${ASSESSMENT_BASE}/api/v1/assessment/sessions/${session.id}/consent`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        biometricConsent: true,
+                        guardianConsent: guardianRequired ? guardianConsent : false,
+                        ageDeclared: ageDeclared,
+                    }),
+                });
+            } catch {
+                // consent recording is best-effort; don't block test start
+            }
+
             navigate(`/test/${session.id}/aptitude`);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to start test';
@@ -272,6 +327,15 @@ export default function CandidateInstructionsPage() {
                     </div>
                 )}
                 {tokenValid === true && (
+                <>
+                {deviceBlocked ? (
+                    <div className="mx-auto max-w-md text-center">
+                        <Monitor className="mx-auto mb-4 h-12 w-12 text-orange-400" />
+                        <h1 className="text-2xl font-bold text-text-primary">Unsupported Device</h1>
+                        <p className="mt-3 text-sm text-text-secondary">{deviceCheck?.message}</p>
+                        <p className="mt-2 text-xs text-text-muted">Detected device class: {deviceCheck?.deviceClass}</p>
+                    </div>
+                ) : (
                 <>
                 <div className="mb-8 text-center">
                     <h1 className="text-3xl font-bold tracking-tight text-text-primary">Pre-Assessment Verification</h1>
@@ -505,6 +569,55 @@ export default function CandidateInstructionsPage() {
                     </div>
                 </GlassCard>
 
+                {/* Age Gate & Biometric Consent (H.6) */}
+                <GlassCard static className="mb-6 p-6">
+                    <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">Age Declaration & Biometric Consent</h2>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-medium text-text-secondary mb-1">Your age</label>
+                            <input
+                                type="number"
+                                min={13}
+                                max={100}
+                                value={ageDeclared ?? ''}
+                                onChange={(e) => setAgeDeclared(e.target.value ? parseInt(e.target.value) : null)}
+                                aria-label="Enter your age"
+                                className="w-32 rounded border border-border-subtle bg-surface px-3 py-1.5 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            />
+                        </div>
+                        <label className="flex cursor-pointer items-start gap-3">
+                            <input
+                                type="checkbox"
+                                checked={biometricConsent}
+                                onChange={(e) => setBiometricConsent(e.target.checked)}
+                                aria-label="I consent to biometric data collection (face capture) for proctoring"
+                                className="mt-0.5 h-4 w-4 rounded border-border accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+                            />
+                            <span className="text-sm leading-relaxed text-text-secondary">
+                                I consent to the collection and processing of my biometric data (facial images) for the purpose
+                                of identity verification and proctoring during this assessment. I understand this data will be
+                                retained per the platform's data retention policy and deleted upon request.
+                            </span>
+                        </label>
+                        {guardianRequired && (
+                            <label className="flex cursor-pointer items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    checked={guardianConsent}
+                                    onChange={(e) => setGuardianConsent(e.target.checked)}
+                                    aria-label="I confirm parental/guardian consent for biometric data collection"
+                                    className="mt-0.5 h-4 w-4 rounded border-border accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+                                />
+                                <span className="text-sm leading-relaxed text-text-secondary">
+                                    <strong className="text-orange-400">Parental/Guardian Consent Required:</strong> Because you
+                                    are under 18, a parent or legal guardian must consent to the biometric data collection above.
+                                    Please confirm that you have obtained their consent.
+                                </span>
+                            </label>
+                        )}
+                    </div>
+                </GlassCard>
+
                 {/* Consent */}
                 <GlassCard static className="mb-6 p-6">
                     <label className="flex cursor-pointer items-start gap-3">
@@ -538,7 +651,7 @@ export default function CandidateInstructionsPage() {
                     <GlassButton
                         variant="primary"
                         size="lg"
-                        disabled={!consent || !allChecksPassed || starting}
+                        disabled={!consent || !allChecksPassed || starting || !consentValid}
                         onClick={handleStart}
                         isLoading={starting}
                     >
@@ -546,6 +659,8 @@ export default function CandidateInstructionsPage() {
                         <ArrowRight className="h-4 w-4" />
                     </GlassButton>
                 </div>
+                </>
+                )}
                 </>
                 )}
             </div>

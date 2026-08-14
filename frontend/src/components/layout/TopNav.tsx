@@ -1,5 +1,6 @@
 import { LogOut, User } from "lucide-react";
 import { GlassButton } from "@/components/ui/GlassButton";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export interface TopNavProps {
   userEmail?: string;
@@ -13,6 +14,7 @@ export function TopNav({ userEmail, onLogout }: TopNavProps) {
         <h2 className="text-sm font-semibold text-text-primary">Hiring Assessment Platform</h2>
       </div>
       <div className="flex items-center gap-4">
+        <NotificationBell />
         {userEmail && (
           <div className="flex items-center gap-2.5" aria-label={`Signed in as ${userEmail}`}>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 border border-border-subtle" aria-hidden="true">

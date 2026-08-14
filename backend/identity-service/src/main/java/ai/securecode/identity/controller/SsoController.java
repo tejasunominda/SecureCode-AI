@@ -40,6 +40,14 @@ public class SsoController {
         return ResponseEntity.ok(ssoService.getSamlMetadata(orgId));
     }
 
+    @PostMapping("/saml/acs")
+    public ResponseEntity<AuthResponse> samlAcs(
+            @RequestParam UUID orgId,
+            @RequestParam("SAMLResponse") String samlResponse,
+            @RequestParam(value = "RelayState", required = false) String relayState) {
+        return ResponseEntity.ok(ssoService.handleSamlAssertion(orgId, samlResponse));
+    }
+
     public record SsoInitiateRequest(String provider, UUID orgId) {}
     public record SsoCallbackRequest(String provider, String code, String state, UUID orgId) {}
 }
