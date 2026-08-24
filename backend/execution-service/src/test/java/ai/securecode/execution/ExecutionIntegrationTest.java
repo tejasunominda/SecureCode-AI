@@ -2,7 +2,7 @@ package ai.securecode.execution;
 
 import ai.securecode.execution.dto.ExecuteRequest;
 import ai.securecode.execution.dto.ExecuteResponse;
-import ai.securecode.execution.service.CodeExecutor;
+import ai.securecode.execution.service.DockerdockerCodeExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +30,7 @@ class ExecutionIntegrationTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private CodeExecutor codeExecutor;
+    private DockerCodeExecutor dockerCodeExecutor;
 
     @MockBean
     private ai.securecode.execution.service.ExecutionQueue executionQueue;
@@ -40,7 +40,7 @@ class ExecutionIntegrationTest {
         ExecuteRequest req = new ExecuteRequest("java", "System.out.println(42);", null, "42", null, null);
         ExecuteResponse mockResp = ExecuteResponse.success("42\n", "", 0, 100);
 
-        when(codeExecutor.execute(any())).thenReturn(mockResp);
+        when(dockerCodeExecutor.execute(any())).thenReturn(mockResp);
 
         mockMvc.perform(post("/api/v1/execution/run/sync")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,7 +76,7 @@ class ExecutionIntegrationTest {
         ExecuteRequest req = new ExecuteRequest("python", "while True: pass", null, null, null, null);
         ExecuteResponse mockResp = ExecuteResponse.timeout("Execution timed out after 5000ms");
 
-        when(codeExecutor.execute(any())).thenReturn(mockResp);
+        when(dockerCodeExecutor.execute(any())).thenReturn(mockResp);
 
         mockMvc.perform(post("/api/v1/execution/run/sync")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,7 +90,7 @@ class ExecutionIntegrationTest {
         ExecuteRequest req = new ExecuteRequest("java", "throw new RuntimeException();", null, null, null, null);
         ExecuteResponse mockResp = ExecuteResponse.error("Runtime exception");
 
-        when(codeExecutor.execute(any())).thenReturn(mockResp);
+        when(dockerCodeExecutor.execute(any())).thenReturn(mockResp);
 
         mockMvc.perform(post("/api/v1/execution/run/sync")
                         .contentType(MediaType.APPLICATION_JSON)

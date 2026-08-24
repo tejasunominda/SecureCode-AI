@@ -12,8 +12,17 @@ data:
   POSTGRES_HOST: postgres
   REDIS_HOST: redis
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  JWT_SECRET: Y2hhbmdlLW1lLXBsZWFzZS1pYW0tYS1zdXBlci1zZWNyZXQta2V5LWZvci1qd3QtaG1hYy1zaGEtMjU2LWJpdHM=
 ---
+# SECURITY: this manifest intentionally ships NO real secret material.
+# Populate securecode-db-secret and securecode-jwt-secret out-of-band before
+# applying this manifest, e.g.:
+#   kubectl create secret generic securecode-db-secret -n securecode \
+#     --from-literal=POSTGRES_USER=... --from-literal=POSTGRES_PASSWORD=...
+#   kubectl create secret generic securecode-jwt-secret -n securecode \
+#     --from-literal=JWT_SECRET="$(openssl rand -base64 48)"
+# In production, back these with a KMS-integrated secret store (e.g. External
+# Secrets Operator / Sealed Secrets / cloud provider CSI secret driver)
+# rather than plain kubectl-managed Secret objects.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -21,8 +30,17 @@ metadata:
   namespace: securecode
 type: Opaque
 stringData:
-  POSTGRES_USER: securecode
-  POSTGRES_PASSWORD: securecode
+  POSTGRES_USER: CHANGE_ME_SET_VIA_CI_CD_OR_SECRET_MANAGER
+  POSTGRES_PASSWORD: CHANGE_ME_SET_VIA_CI_CD_OR_SECRET_MANAGER
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: securecode-jwt-secret
+  namespace: securecode
+type: Opaque
+stringData:
+  JWT_SECRET: CHANGE_ME_GENERATE_WITH_openssl_rand_base64_48_AND_INJECT_VIA_SECRET_MANAGER
 ---
 # ─── Postgres ──────────────────────────────────────────────────────
 apiVersion: apps/v1
@@ -259,8 +277,8 @@ spec:
               value: redis
             - name: SECURECODE_JWT_SECRET
               valueFrom:
-                configMapKeyRef:
-                  name: securecode-config
+                secretKeyRef:
+                  name: securecode-jwt-secret
                   key: JWT_SECRET
           readinessProbe:
             httpGet:
@@ -316,8 +334,8 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: SECURECODE_JWT_SECRET
               valueFrom:
-                configMapKeyRef:
-                  name: securecode-config
+                secretKeyRef:
+                  name: securecode-jwt-secret
                   key: JWT_SECRET
           readinessProbe:
             httpGet:

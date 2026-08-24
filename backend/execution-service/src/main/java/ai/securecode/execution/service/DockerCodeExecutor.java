@@ -6,6 +6,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.WaitContainerResultCallback;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Capability;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
@@ -52,6 +53,28 @@ public class DockerCodeExecutor {
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
     }
 
+    /**
+     * Baseline hardened container configuration applied to every sandbox run
+     * (defense-in-depth beyond network isolation, per SRS C.11 / F.6):
+     * <ul>
+     *   <li>{@code cap-drop=ALL} — no Linux capabilities beyond the unprivileged default</li>
+     *   <li>{@code pids-limit} — bounds fork-bomb / resource-exhaustion attempts</li>
+     *   <li>{@code readonly rootfs} — only the bind-mounted /tmp workdir is writable</li>
+     *   <li>{@code security-opt=no-new-privileges} — blocks setuid/setgid privilege escalation</li>
+     * </ul>
+     */
+    private HostConfig hardenedHostConfig(Path tmpDir) {
+        return HostConfig.newHostConfig()
+                .withMemory(memoryLimitMb * 1024 * 1024)
+                .withCpuCount(1L)
+                .withNetworkMode("none")
+                .withReadonlyRootfs(true)
+                .withCapDrop(Capability.ALL)
+                .withPidsLimit(64L)
+                .withSecurityOpts(java.util.List.of("no-new-privileges"))
+                .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
+    }
+
     public ExecuteResponse execute(ExecuteRequest req) {
         ExecuteResponse rawResponse = switch (req.language().toLowerCase()) {
             case "python", "python3" -> executeInContainer(req, "python:3.12-slim", "python3", "/tmp/solution.py");
@@ -90,29 +113,12 @@ public class DockerCodeExecutor {
                         passed ? null : "Regex mismatch: output does not match pattern");
             }
             case "custom" -> {
-                if (req.judgeCode() == null || req.judgeCode().isBlank()) {
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed", "Custom judge code missing");
-                }
-                try {
-                    javax.script.ScriptEngine engine = new javax.script.ScriptEngineManager().getEngineByName("javascript");
-                    if (engine == null) {
-                        yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                                rawResponse.runtimeMs(), 0, "completed", "JavaScript engine not available for custom judge");
-                    }
-                    engine.eval(req.judgeCode());
-                    Object result = engine.eval("judge(" +
-                            java.util.Objects.requireNonNull(actual).replace("\\", "\\\\").replace("'", "\\'") +
-                            ", " +
-                            expected.replace("\\", "\\\\").replace("'", "\\'") + ")");
-                    boolean passed = Boolean.TRUE.equals(result);
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed",
-                            passed ? null : "Custom judge rejected output");
-                } catch (Exception e) {
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed", "Custom judge error: " + e.getMessage());
-                }
+                // SECURITY: see CodeExecutor.applyCustomJudge for rationale.
+                // Custom judges are disabled until a properly sandboxed
+                // (non-host-interop, resource-limited) script evaluator exists.
+                yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                        rawResponse.runtimeMs(), 0, "completed",
+                        "Custom judge type is disabled: no sandboxed script evaluator is configured");
             }
             case "float_tolerance" -> {
                 try {
@@ -142,12 +148,7 @@ public class DockerCodeExecutor {
         }
 
         try {
-            HostConfig hostConfig = HostConfig.newHostConfig()
-                    .withMemory(memoryLimitMb * 1024 * 1024)
-                    .withCpuCount(1L)
-                    .withNetworkMode("none")
-                    .withReadonlyRootfs(false)
-                    .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
+            HostConfig hostConfig = hardenedHostConfig(tmpDir);
 
             CreateContainerResponse container = dockerClient.createContainerCmd(image)
                     .withCmd(runCmd, filePath)
@@ -196,11 +197,7 @@ public class DockerCodeExecutor {
         }
 
         try {
-            HostConfig hostConfig = HostConfig.newHostConfig()
-                    .withMemory(memoryLimitMb * 1024 * 1024)
-                    .withCpuCount(1L)
-                    .withNetworkMode("none")
-                    .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
+            HostConfig hostConfig = hardenedHostConfig(tmpDir);
 
             CreateContainerResponse compileContainer = dockerClient.createContainerCmd("openjdk:21-slim")
                     .withCmd("javac", "/tmp/Solution.java")
@@ -281,11 +278,7 @@ public class DockerCodeExecutor {
         }
 
         try {
-            HostConfig hostConfig = HostConfig.newHostConfig()
-                    .withMemory(memoryLimitMb * 1024 * 1024)
-                    .withCpuCount(1L)
-                    .withNetworkMode("none")
-                    .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
+            HostConfig hostConfig = hardenedHostConfig(tmpDir);
 
             String[] compileCmd = new String[compileArgs.length + 1];
             compileCmd[0] = compiler;
@@ -367,11 +360,7 @@ public class DockerCodeExecutor {
         }
 
         try {
-            HostConfig hostConfig = HostConfig.newHostConfig()
-                    .withMemory(memoryLimitMb * 1024 * 1024)
-                    .withCpuCount(1L)
-                    .withNetworkMode("none")
-                    .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
+            HostConfig hostConfig = hardenedHostConfig(tmpDir);
 
             CreateContainerResponse container = dockerClient.createContainerCmd("postgres:16-alpine")
                     .withCmd("psql", "-c", "\\i /tmp/solution.sql")

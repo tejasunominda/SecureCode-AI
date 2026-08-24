@@ -56,29 +56,17 @@ public class CodeExecutor {
                         passed ? null : "Regex mismatch: output does not match pattern");
             }
             case "custom" -> {
-                if (req.judgeCode() == null || req.judgeCode().isBlank()) {
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed", "Custom judge code missing");
-                }
-                try {
-                    javax.script.ScriptEngine engine = new javax.script.ScriptEngineManager().getEngineByName("javascript");
-                    if (engine == null) {
-                        yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                                rawResponse.runtimeMs(), 0, "completed", "JavaScript engine not available for custom judge");
-                    }
-                    engine.eval(req.judgeCode());
-                    Object result = engine.eval("judge(" +
-                            java.util.Objects.requireNonNull(actual).replace("\\", "\\\\").replace("'", "\\'") +
-                            ", " +
-                            expected.replace("\\", "\\\\").replace("'", "\\'") + ")");
-                    boolean passed = Boolean.TRUE.equals(result);
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed",
-                            passed ? null : "Custom judge rejected output");
-                } catch (Exception e) {
-                    yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
-                            rawResponse.runtimeMs(), 0, "completed", "Custom judge error: " + e.getMessage());
-                }
+                // SECURITY: "custom" judges previously evaluated author-supplied
+                // JavaScript via javax.script.ScriptEngine with full Java host
+                // interop and no sandboxing (arbitrary code execution on the
+                // service host / Docker-socket-accessible process). Disabled
+                // pending a properly isolated evaluator (e.g. a GraalJS Context
+                // built with allowHostAccess(HostAccess.NONE), allowIO(false),
+                // allowCreateThread(false), and a hard CPU/time limit). Use
+                // "token", "regex", or "float_tolerance" judge types instead.
+                yield new ExecuteResponse(actual, rawResponse.stderr(), rawResponse.exitCode(),
+                        rawResponse.runtimeMs(), 0, "completed",
+                        "Custom judge type is disabled: no sandboxed script evaluator is configured");
             }
             case "float_tolerance" -> {
                 try {

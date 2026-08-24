@@ -17,6 +17,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Worker pool that polls the Redis execution queue and dispatches requests
  * to the DockerCodeExecutor. Scales horizontally by adding more service instances
  * (FR-EDIT-04: "queue execution requests and scale worker pools horizontally").
+ *
+ * SECURITY: this pool intentionally has no fallback to the unsandboxed,
+ * host-process {@link CodeExecutor}. Candidate-submitted code is untrusted
+ * by definition (FR-EDIT-03); if the Docker sandbox is unavailable, requests
+ * must fail closed (return an error to the candidate) rather than executing
+ * arbitrary code directly on the service host.
  */
 @Service
 public class ExecutionWorkerPool {
@@ -28,14 +34,12 @@ public class ExecutionWorkerPool {
 
     private final ExecutionQueue queue;
     private final DockerCodeExecutor dockerExecutor;
-    private final CodeExecutor fallbackExecutor;
     private final ExecutorService executor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public ExecutionWorkerPool(ExecutionQueue queue, DockerCodeExecutor dockerExecutor, CodeExecutor fallbackExecutor) {
+    public ExecutionWorkerPool(ExecutionQueue queue, DockerCodeExecutor dockerExecutor) {
         this.queue = queue;
         this.dockerExecutor = dockerExecutor;
-        this.fallbackExecutor = fallbackExecutor;
         this.executor = Executors.newFixedThreadPool(workerPoolSize);
     }
 
@@ -64,8 +68,10 @@ public class ExecutionWorkerPool {
                 try {
                     response = dockerExecutor.execute(queued.request());
                 } catch (Exception dockerEx) {
-                    log.warn("Docker execution failed, falling back to subprocess: {}", dockerEx.getMessage());
-                    response = fallbackExecutor.execute(queued.request());
+                    log.error("Docker sandbox execution failed; failing closed (no unsandboxed fallback): {}",
+                            dockerEx.getMessage());
+                    response = ExecuteResponse.error(
+                            "Execution sandbox is temporarily unavailable. Please try again shortly.");
                 }
 
                 queue.publishResult(queued.requestId(), response);
