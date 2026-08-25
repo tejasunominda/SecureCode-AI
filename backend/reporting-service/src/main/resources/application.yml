@@ -2,6 +2,8 @@ server:
   port: 8085
 
 securecode:
+  jwt:
+    secret: ${SECURECODE_JWT_SECRET}
   cors:
     allowed-origins: ${SECURECODE_CORS_ALLOWED_ORIGINS:http://localhost:5173}
 

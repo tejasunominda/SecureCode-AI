@@ -16,11 +16,18 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    // SECURITY: never combine a wildcard origin with allowCredentials(true) —
+    // that permits any website to make credentialed cross-origin requests.
+    // Configure the concrete, comma-separated list of trusted web-app origins.
+    @Value("${securecode.cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
 
     @Value("${securecode.ratelimit.auth.max:100}")
     private int authRateLimitMax;
@@ -48,7 +55,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
