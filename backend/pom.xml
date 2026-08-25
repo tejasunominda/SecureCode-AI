@@ -39,8 +39,12 @@
         <docker-java.version>3.4.0</docker-java.version>
         <minio.version>8.5.12</minio.version>
         <openpdf.version>1.3.30</openpdf.version>
-        <opentelemetry.version>1.42.1</opentelemetry.version>
-        <opentelemetry-spring.version>1.42.1</opentelemetry-spring.version>
+        <!-- NOTE: io.opentelemetry.instrumentation artifacts use their own
+             version line, distinct from io.opentelemetry core artifacts.
+             These two versions must be a published, compatible pair -- do
+             not set them equal to each other. -->
+        <opentelemetry.version>1.60.1</opentelemetry.version>
+        <opentelemetry-spring.version>2.26.1</opentelemetry-spring.version>
     </properties>
 
     <dependencyManagement>
