@@ -49,6 +49,23 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- OpenTelemetry BOMs must be imported BEFORE spring-boot-dependencies
+                 so that Spring Boot's OpenTelemetry pins do not override the
+                 versions required by opentelemetry-spring-boot-starter. -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-bom</artifactId>
+                <version>${opentelemetry-spring.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
