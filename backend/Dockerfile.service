@@ -1,6 +1,6 @@
 # Shared Dockerfile for all Spring Boot microservices.
 # Build arg SERVICE_NAME selects which service JAR to copy.
-FROM eclipse-temurin:21-jdk AS builder
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 COPY pom.xml .
@@ -13,8 +13,7 @@ COPY proctoring-service/ proctoring-service/
 COPY reporting-service/ reporting-service/
 COPY notification-service/ notification-service/
 
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -q -pl ${SERVICE_NAME} -am package -DskipTests || \
-    mvn -q -pl ${SERVICE_NAME} -am package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -q -pl ${SERVICE_NAME} -am package -DskipTests
 
 FROM eclipse-temurin:21-jre
 
