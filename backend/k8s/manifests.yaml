@@ -602,3 +602,53 @@ spec:
                 name: api-gateway
                 port:
                   number: 8080
+---
+# ─── Network Policies ──────────────────────────────────────────────
+# Default-deny ingress to backend services except from the api-gateway,
+# the ingress controller, and same-namespace readiness checks.
+# This is critical because the proctoring/reporting services currently
+# authorize requests at the gateway but use permitAll() internally;
+# without a NetworkPolicy they are directly reachable on their ClusterIP.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-default-deny-ingress
+  namespace: securecode
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-backend
+  namespace: securecode
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086

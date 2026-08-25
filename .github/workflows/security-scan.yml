@@ -80,13 +80,18 @@ jobs:
           sarif_file: reports/dependency-check-report.sarif
 
   dast-zap:
+    # SECURITY NOTE: DAST requires a running target. This job is intentionally
+    # non-blocking (continue-on-error) until a dedicated ephemeral staging
+    # environment or docker-compose stack is started in the workflow. In
+    # production, this should run against the staging URL after deployment.
     name: DAST - OWASP ZAP Baseline Scan
     runs-on: ubuntu-latest
     needs: [sast-semgrep, sast-codeql]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.13.0
         with:
-          target: 'http://localhost:8081'
+          target: 'http://localhost:8080'
           cmd_options: '-a -j'
