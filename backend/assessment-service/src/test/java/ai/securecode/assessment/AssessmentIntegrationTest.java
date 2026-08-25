@@ -3,7 +3,6 @@ package ai.securecode.assessment;
 import ai.securecode.assessment.dto.CreateApplicantRequest;
 import ai.securecode.assessment.dto.CreateAssessmentRequest;
 import ai.securecode.assessment.dto.CreateQuestionRequest;
-import ai.securecode.assessment.config.JwtAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,9 +32,6 @@ class AssessmentIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @MockBean
     private org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
