@@ -13,6 +13,14 @@ spring:
       host: localhost
       port: 6379
 
+securecode:
+  security:
+    permit-all: true
+  jwt:
+    filter:
+      enabled: false
+    secret: Y2hhbmdlLW1lLXBsZWFzZS1pYW0tYS1zdXBlci1zZWNyZXQta2V5LWZvci1qd3QtaG1hYy1zaGEtMjU2LWJpdHM=
+
 execution:
   docker:
     enabled: false
