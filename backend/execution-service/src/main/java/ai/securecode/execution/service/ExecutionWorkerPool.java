@@ -34,18 +34,18 @@ public class ExecutionWorkerPool {
 
     private final ExecutionQueue queue;
     private final DockerCodeExecutor dockerExecutor;
-    private final ExecutorService executor;
+    private ExecutorService executor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public ExecutionWorkerPool(ExecutionQueue queue, DockerCodeExecutor dockerExecutor) {
         this.queue = queue;
         this.dockerExecutor = dockerExecutor;
-        this.executor = Executors.newFixedThreadPool(workerPoolSize);
     }
 
     @PostConstruct
     void start() {
         running.set(true);
+        this.executor = Executors.newFixedThreadPool(workerPoolSize);
         for (int i = 0; i < workerPoolSize; i++) {
             executor.submit(this::workerLoop);
         }
@@ -55,7 +55,9 @@ public class ExecutionWorkerPool {
     @PreDestroy
     void stop() {
         running.set(false);
-        executor.shutdownNow();
+        if (executor != null) {
+            executor.shutdownNow();
+        }
     }
 
     private void workerLoop() {
