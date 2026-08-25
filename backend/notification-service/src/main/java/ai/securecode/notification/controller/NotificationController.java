@@ -128,7 +128,7 @@ public class NotificationController {
 
     @PutMapping("/in-app/read-all")
     public ResponseEntity<Void> markAllRead(@RequestHeader("X-User-Id") UUID userId) {
-        inAppNotificationRepo.markAllRead(userId);
+        inAppNotificationRepo.markAllRead(userId, Instant.now());
         return ResponseEntity.noContent().build();
     }
 
