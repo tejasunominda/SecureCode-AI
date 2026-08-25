@@ -105,14 +105,14 @@ public class NotificationController {
             @RequestParam(defaultValue = "false") boolean unreadOnly) {
         PageRequest pageable = PageRequest.of(page, size);
         Page<InAppNotification> result = unreadOnly
-                ? inAppNotificationRepo.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId, pageable)
+                ? inAppNotificationRepo.findByUserIdAndReadFalseOrderByCreatedAtDesc(userId, pageable)
                 : inAppNotificationRepo.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/in-app/unread-count")
     public ResponseEntity<Map<String, Long>> getUnreadCount(@RequestHeader("X-User-Id") UUID userId) {
-        return ResponseEntity.ok(Map.of("unreadCount", inAppNotificationRepo.countByUserIdAndIsReadFalse(userId)));
+        return ResponseEntity.ok(Map.of("unreadCount", inAppNotificationRepo.countByUserIdAndReadFalse(userId)));
     }
 
     @PutMapping("/in-app/{notificationId}/read")

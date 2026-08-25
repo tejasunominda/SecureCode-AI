@@ -15,9 +15,9 @@ public interface InAppNotificationRepository extends JpaRepository<InAppNotifica
 
     Page<InAppNotification> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
-    Page<InAppNotification> findByUserIdAndIsReadFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    Page<InAppNotification> findByUserIdAndReadFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
-    long countByUserIdAndIsReadFalse(UUID userId);
+    long countByUserIdAndReadFalse(UUID userId);
 
     @Modifying
     @Query("UPDATE InAppNotification n SET n.read = true, n.readAt = CURRENT_TIMESTAMP WHERE n.userId = :userId AND n.read = false")
