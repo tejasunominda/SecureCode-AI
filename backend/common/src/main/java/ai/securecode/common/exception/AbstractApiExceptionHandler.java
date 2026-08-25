@@ -33,13 +33,13 @@ public abstract class AbstractApiExceptionHandler {
         FieldError fieldError = ex.getBindingResult().getFieldError();
         String field = fieldError != null ? fieldError.getField() : null;
         String message = fieldError != null ? fieldError.getDefaultMessage() : "Validation failed";
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiErrorResponse.of("VALIDATION_ERROR", message, field, currentRequestId()));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiErrorResponse.of("VALIDATION_ERROR", ex.getMessage(), null, currentRequestId()));
     }
 

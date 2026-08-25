@@ -15,7 +15,7 @@ public class Assessment {
     @Column(name = "org_id", nullable = false)
     private UUID orgId;
 
-    @Column(name = "template_id", nullable = false)
+    @Column(name = "template_id", nullable = true)
     private UUID templateId;
 
     @Column(nullable = false)
