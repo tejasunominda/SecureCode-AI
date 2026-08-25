@@ -38,30 +38,42 @@ public class SecurityConfig {
     @Value("${securecode.ratelimit.api.max:200}")
     private int apiRateLimitMax;
 
+    @Value("${securecode.jwt.filter.enabled:true}")
+    private boolean jwtFilterEnabled;
+
+    @Value("${securecode.security.permit-all:false}")
+    private boolean permitAll;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, StringRedisTemplate redisTemplate) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/assessment/candidate/**").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/answer").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/code").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/code/run").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/submit").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/proctoring").permitAll()
-                        .requestMatchers("/api/v1/assessment/sessions/*/proctoring/detailed").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/questions").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers("/api/v1/assessment/candidate/**").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/answer").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/code").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/code/run").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/submit").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/proctoring").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/proctoring/detailed").permitAll();
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/questions").permitAll();
+                    auth.requestMatchers("/actuator/**").permitAll();
+                    if (permitAll) {
+                        auth.anyRequest().permitAll();
+                    } else {
+                        auth.anyRequest().authenticated();
+                    }
+                })
                 .addFilterBefore(
                         new RateLimitFilter(redisTemplate, apiRateLimitMax, Duration.ofMinutes(1), "rl:api:"),
                         UsernamePasswordAuthenticationFilter.class
                 )
-                .addFilterBefore(new SecurityHeadersFilter(), RateLimitFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new SecurityHeadersFilter(), RateLimitFilter.class);
+        if (jwtFilterEnabled) {
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        }
         return http.build();
     }
 
