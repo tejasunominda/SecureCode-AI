@@ -2,6 +2,8 @@
 # Build arg SERVICE_NAME selects which service JAR to copy.
 FROM maven:3.9-eclipse-temurin-21 AS builder
 
+ARG SERVICE_NAME
+
 WORKDIR /build
 COPY pom.xml .
 COPY common/ common/
