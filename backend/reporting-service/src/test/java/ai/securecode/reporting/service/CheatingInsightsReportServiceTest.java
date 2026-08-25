@@ -14,7 +14,7 @@ class CheatingInsightsReportServiceTest {
     @Test
     void computeDiscriminationIndex_goodQuestion_returnsHighDI() {
         BigDecimal di = service.computeDiscriminationIndex(8, 10, 2, 10);
-        BigDecimal expected = BigDecimal.valueOf(0.8).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal expected = BigDecimal.valueOf(0.6).setScale(2, RoundingMode.HALF_UP);
         assertEquals(expected, di);
     }
 
