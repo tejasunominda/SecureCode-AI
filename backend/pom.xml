@@ -41,7 +41,7 @@
         <openpdf.version>1.3.30</openpdf.version>
         <!-- NOTE: io.opentelemetry.instrumentation artifacts use their own
              version line, distinct from io.opentelemetry core artifacts.
-             These two versions must be a published, compatible pair -- do
+             These two versions must be a published, compatible pair; do
              not set them equal to each other. -->
         <opentelemetry.version>1.60.1</opentelemetry.version>
         <opentelemetry-spring.version>2.26.1</opentelemetry-spring.version>
