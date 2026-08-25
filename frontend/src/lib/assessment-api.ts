@@ -1,6 +1,6 @@
 import { ApiError, tryRefreshToken } from './api';
 
-const ASSESSMENT_BASE_URL = import.meta.env.VITE_ASSESSMENT_API_BASE_URL ?? 'http://localhost:8082';
+const ASSESSMENT_BASE_URL = import.meta.env.VITE_ASSESSMENT_API_BASE_URL ?? '';
 
 async function assessmentRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = localStorage.getItem('securecode_access_token');
