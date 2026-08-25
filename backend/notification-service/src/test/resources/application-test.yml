@@ -13,6 +13,14 @@ spring:
     username: test
     password: test
 
+securecode:
+  security:
+    permit-all: true
+  jwt:
+    filter:
+      enabled: false
+    secret: Y2hhbmdlLW1lLXBsZWFzZS1pYW0tYS1zdXBlci1zZWNyZXQta2V5LWZvci1qd3QtaG1hYy1zaGEtMjU2LWJpdHM=
+
 management:
   endpoints:
     web:

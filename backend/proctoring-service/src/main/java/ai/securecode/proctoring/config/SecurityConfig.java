@@ -31,18 +31,30 @@ public class SecurityConfig {
     @Value("${securecode.cors.allowed-origins:http://localhost:5173}")
     private String allowedOrigins;
 
+    @Value("${securecode.jwt.filter.enabled:true}")
+    private boolean jwtFilterEnabled;
+
+    @Value("${securecode.security.permit-all:false}")
+    private boolean permitAll;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .anyRequest().authenticated()
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers("/ws/**").permitAll();
+                    auth.requestMatchers("/actuator/**").permitAll();
+                    if (permitAll) {
+                        auth.anyRequest().permitAll();
+                    } else {
+                        auth.anyRequest().authenticated();
+                    }
+                });
+        if (jwtFilterEnabled) {
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        }
         return http.build();
     }
 
