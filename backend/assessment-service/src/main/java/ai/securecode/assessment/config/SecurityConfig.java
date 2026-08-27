@@ -56,9 +56,13 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/assessment/sessions/*/code").permitAll();
                     auth.requestMatchers("/api/v1/assessment/sessions/*/code/run").permitAll();
                     auth.requestMatchers("/api/v1/assessment/sessions/*/submit").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/consent").permitAll();
+                    auth.requestMatchers("/api/v1/assessment/sessions/*/autosave").permitAll();
                     auth.requestMatchers("/api/v1/assessment/sessions/*/proctoring").permitAll();
                     auth.requestMatchers("/api/v1/assessment/sessions/*/proctoring/detailed").permitAll();
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/questions").permitAll();
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/sessions/*/questions").permitAll();
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessment/sessions/*/report").permitAll();
                     auth.requestMatchers("/actuator/**").permitAll();
                     if (permitAll) {
                         auth.anyRequest().permitAll();

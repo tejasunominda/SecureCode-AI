@@ -80,7 +80,7 @@ public class AssessmentController {
     @GetMapping("/candidate/validate/{token}")
     public ResponseEntity<Void> validateLink(@PathVariable String token) {
         service.validateLink(token);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     // ─── Candidate: Submit MCQ Answer ───
@@ -147,6 +147,13 @@ public class AssessmentController {
             @RequestHeader(value = "X-Org-Id", required = false) UUID orgId,
             @RequestParam(required = false) String type) {
         return ResponseEntity.ok(service.listQuestions(orgId, type));
+    }
+
+    @GetMapping("/sessions/{sessionId}/questions")
+    public ResponseEntity<List<QuestionResponse>> getSessionQuestions(
+            @PathVariable UUID sessionId,
+            @RequestParam(required = false) String type) {
+        return ResponseEntity.ok(service.getSessionQuestions(sessionId, type));
     }
 
     @PutMapping("/questions/{id}/publish")

@@ -6,6 +6,8 @@ securecode:
     secret: ${SECURECODE_JWT_SECRET}
   cors:
     allowed-origins: ${SECURECODE_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    api-key: ${NOTIFICATION_SERVICE_API_KEY:}
 
 spring:
   application:

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { api } from '@/lib/api';
 import { assessmentApi, type ApplicantDTO, type SessionReportDTO, type CodingResultDTO } from '@/lib/assessment-api';
 import { GlassButton, GlassInput, GlassBadge, GlassTable, GlassModal, GlassSelect, GlassPagination } from '@/components/ui';
 import { toast } from '@/components/ui/toast/useToastStore';
 import type { GlassTableColumn } from '@/components/ui';
 import { useDebounce } from '@/hooks/useUtils';
-import { exportToCSV } from '@/lib/export-utils';
+import { exportToCSV, downloadReport } from '@/lib/export-utils';
 import { UserPlus, Check, X, Send, Users, FileText, Eye, ThumbsUp, ThumbsDown, Code2, AlertTriangle, Search, Download, Monitor } from 'lucide-react';
 import { MonitoringGrid } from '@/components/proctoring/MonitoringGrid';
 
@@ -55,6 +56,7 @@ export default function HRDashboardPage() {
     const [decisionNotes, setDecisionNotes] = useState('');
     const [decisionType, setDecisionType] = useState<'pass' | 'fail'>('pass');
     const [submittingDecision, setSubmittingDecision] = useState(false);
+    const [resendingId, setResendingId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const [statusFilter, setStatusFilter] = useState('all');
@@ -214,9 +216,10 @@ export default function HRDashboardPage() {
             );
             toast.success(`Candidate marked as ${decisionType}`);
             setShowDecisionModal(false);
+            setShowReportModal(false);
             setDecisionNotes('');
             setSelectedSession(null);
-            fetchData();
+            await fetchData();
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to submit decision';
             toast.danger(message);
@@ -270,11 +273,50 @@ export default function HRDashboardPage() {
         toast.success('Applicants exported to CSV');
     };
 
+    const handleResendInvite = async (row: SessionReportDTO) => {
+        if (!user?.orgId || !user?.userId) return;
+        setResendingId(row.sessionId);
+        try {
+            const link = await assessmentApi.generateLink(
+                user.orgId,
+                user.userId,
+                row.applicantId,
+                DEFAULT_TEMPLATE_ID,
+                5
+            );
+            const fullUrl = `${window.location.origin}${link.testUrl}`;
+            const params = new URLSearchParams({
+                to: row.applicantEmail,
+                candidateName: row.applicantName,
+                assessmentLink: fullUrl,
+                orgName: 'SecureCode AI',
+            });
+            await api.post<void>(`/api/v1/notifications/email/invite?${params.toString()}`, {});
+            toast.success('Invite email resent', `A fresh link was sent to ${row.applicantEmail}`);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to resend invite';
+            toast.danger(message);
+        } finally {
+            setResendingId(null);
+        }
+    };
+
     const handleExportSessions = () => {
         const headers = ['Candidate', 'Email', 'Status', 'Aptitude', 'Reasoning', 'Coding Submissions', 'Decision', 'Started', 'Submitted'];
         const rows = filteredSessions.map((s) => [s.applicantName, s.applicantEmail, s.status, `${s.aptitudeCorrect}/${s.aptitudeTotal}`, `${s.reasoningCorrect}/${s.reasoningTotal}`, s.codingResults.length, s.hiringDecision ?? 'pending', s.startedAt ?? '', s.submittedAt ?? '']);
         exportToCSV(`sessions-${Date.now()}.csv`, headers, rows);
         toast.success('Sessions exported to CSV');
+    };
+
+    const handleExportOrgAnalytics = async () => {
+        if (!user?.orgId) return;
+        try {
+            await downloadReport(`/api/v1/reporting/orgs/${user.orgId}/cheating-insights/export`, 'pdf', `cheating-insights-${Date.now()}.pdf`);
+            toast.success('PDF report downloaded');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to download PDF';
+            toast.danger(message);
+        }
     };
 
     const applicantColumns: GlassTableColumn<ApplicantDTO>[] = [
@@ -407,6 +449,16 @@ export default function HRDashboardPage() {
                         <Eye className="h-3.5 w-3.5" />
                         View
                     </GlassButton>
+                    <GlassButton
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleResendInvite(row)}
+                        isLoading={resendingId === row.sessionId}
+                        disabled={resendingId === row.sessionId}
+                    >
+                        <Send className="h-3.5 w-3.5" />
+                        Resend
+                    </GlassButton>
                     {row.status === 'submitted' && !row.hiringDecision && (
                         <>
                             <GlassButton size="sm" variant="secondary" onClick={() => openDecisionModal(row, 'pass')}>
@@ -521,6 +573,7 @@ export default function HRDashboardPage() {
                             options={[{ value: 'all', label: 'All statuses' }, { value: 'in_progress', label: 'In Progress' }, { value: 'submitted', label: 'Submitted' }]}
                             className="w-40" />
                         <GlassButton variant="secondary" size="sm" onClick={handleExportSessions}><Download className="h-4 w-4" /> Export</GlassButton>
+                        <GlassButton variant="secondary" size="sm" onClick={handleExportOrgAnalytics}><FileText className="h-4 w-4" /> PDF Report</GlassButton>
                     </div>
                     <GlassTable
                         columns={sessionColumns}

@@ -38,7 +38,7 @@ describe("useAuthStore", () => {
       json: () => Promise.resolve(mockAuthResponse),
     } as Response);
 
-    await useAuthStore.getState().login("org-uuid-1", "test@example.com", "Password123!");
+    await useAuthStore.getState().login("test@example.com", "Password123!");
 
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
@@ -65,7 +65,7 @@ describe("useAuthStore", () => {
     } as Response);
 
     await expect(
-      useAuthStore.getState().login("org-uuid-1", "bad@example.com", "wrong"),
+      useAuthStore.getState().login("bad@example.com", "wrong"),
     ).rejects.toThrow();
 
     const state = useAuthStore.getState();

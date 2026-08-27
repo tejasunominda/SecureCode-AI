@@ -10,5 +10,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 
     Optional<AppUser> findByOrgIdAndEmailAndDeletedAtIsNull(UUID orgId, String email);
 
+    Optional<AppUser> findFirstByEmailAndDeletedAtIsNull(String email);
+
     List<AppUser> findByOrgIdAndDeletedAtIsNull(UUID orgId);
 }

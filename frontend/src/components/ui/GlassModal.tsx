@@ -22,6 +22,8 @@ export interface GlassModalProps {
 export function GlassModal({ open, onClose, title, children, className }: GlassModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +31,7 @@ export function GlassModal({ open, onClose, title, children, className }: GlassM
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && dialogRef.current) {
@@ -59,7 +61,7 @@ export function GlassModal({ open, onClose, title, children, className }: GlassM
       document.removeEventListener("keydown", onKeyDown);
       previousFocus.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

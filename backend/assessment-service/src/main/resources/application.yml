@@ -35,6 +35,8 @@ securecode:
     allowed-origins: ${SECURECODE_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
     secret: ${SECURECODE_JWT_SECRET}
+  execution:
+    url: ${EXECUTION_SERVICE_URL:http://execution-service:8083}
 
 management:
   endpoints:

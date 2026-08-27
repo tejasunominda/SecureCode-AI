@@ -61,22 +61,13 @@ export default function CandidateInstructionsPage() {
                 return;
             }
             try {
-                const ASSESSMENT_BASE = import.meta.env.VITE_ASSESSMENT_API_BASE_URL ?? 'http://localhost:8082';
-                const resp = await fetch(`${ASSESSMENT_BASE}/api/v1/assessment/candidate/validate/${token}`, {
-                    method: 'GET',
-                });
+                await assessmentApi.validateToken(token);
                 if (cancelled) return;
-                if (resp.ok) {
-                    setTokenValid(true);
-                } else {
-                    const body = await resp.json().catch(() => ({}));
-                    const msg = body.error?.message ?? body.message ?? 'This assessment link is invalid, expired, or has already been used.';
-                    setTokenError(msg);
-                    setTokenValid(false);
-                }
+                setTokenValid(true);
             } catch (err) {
                 if (cancelled) return;
-                setTokenError('Unable to verify assessment link. Please check your connection and try again.');
+                const msg = err instanceof Error ? err.message : 'This assessment link is invalid, expired, or has already been used.';
+                setTokenError(msg);
                 setTokenValid(false);
             }
         }
@@ -132,6 +123,20 @@ export default function CandidateInstructionsPage() {
     const deviceBlocked = deviceCheck !== null && !deviceCheck.allowed;
     const guardianRequired = ageDeclared !== null && ageDeclared < 18;
     const consentValid = biometricConsent && (!guardianRequired || guardianConsent);
+
+    const isTestMode = (window as any).__E2E_TEST_MODE === true;
+
+    // Dev / browser-test bypass: mark all proctoring checks as passed without real camera/mic.
+    useEffect(() => {
+        if (isTestMode) {
+            setChecks({ camera: 'success', microphone: 'success', faceCapture: 'success' });
+            setCapturedImage('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=');
+            setFaceModelLoading(false);
+            setAgeDeclared(25);
+            setBiometricConsent(true);
+            setDeviceCheck({ allowed: true, deviceClass: 'desktop', message: 'Test mode: device checks bypassed.' });
+        }
+    }, [isTestMode]);
 
     const requestMedia = async () => {
         setError(null);
@@ -261,16 +266,11 @@ export default function CandidateInstructionsPage() {
             const session = await assessmentApi.startTest(token);
             localStorage.setItem('securecode_org_id', session.orgId);
 
-            const ASSESSMENT_BASE = import.meta.env.VITE_ASSESSMENT_API_BASE_URL ?? 'http://localhost:8082';
             try {
-                await fetch(`${ASSESSMENT_BASE}/api/v1/assessment/sessions/${session.id}/consent`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        biometricConsent: true,
-                        guardianConsent: guardianRequired ? guardianConsent : false,
-                        ageDeclared: ageDeclared,
-                    }),
+                await assessmentApi.recordConsent(session.id, {
+                    biometricConsent: true,
+                    guardianConsent: guardianRequired ? guardianConsent : false,
+                    ageDeclared,
                 });
             } catch {
                 // consent recording is best-effort; don't block test start

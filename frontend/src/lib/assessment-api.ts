@@ -14,6 +14,10 @@ async function assessmentRequest<T>(path: string, options: RequestInit = {}): Pr
 
     let res = await fetch(`${ASSESSMENT_BASE_URL}${path}`, { ...options, headers });
 
+    if (res.status === 204) {
+        return undefined as T;
+    }
+
     // Token refresh on 401 — use shared tryRefreshToken to avoid duplicate refresh calls
     if (res.status === 401 && !headers['x-retry']) {
         const refreshed = await tryRefreshToken();
@@ -129,6 +133,12 @@ export interface ProctoringEventDTO {
     detail?: string | null;
 }
 
+export interface ConsentResponse {
+    consentRecorded: boolean;
+    guardianConsentRequired: boolean;
+    message: string;
+}
+
 export interface QuestionDTO {
     id: string;
     type: string;
@@ -197,6 +207,17 @@ export const assessmentApi = {
             method: 'POST',
         }),
 
+    validateToken: (token: string) =>
+        assessmentRequest<void>(`/api/v1/assessment/candidate/validate/${token}`, {
+            method: 'GET',
+        }),
+
+    recordConsent: (sessionId: string, data: { biometricConsent: boolean; guardianConsent: boolean; ageDeclared: number | null }) =>
+        assessmentRequest<ConsentResponse>(`/api/v1/assessment/sessions/${sessionId}/consent`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
     // Candidate: submit answer
     submitAnswer: (sessionId: string, questionId: string, selectedOption: string) =>
         assessmentRequest(`/api/v1/assessment/sessions/${sessionId}/answer`, {
@@ -247,6 +268,11 @@ export const assessmentApi = {
     listQuestions: (orgId: string, type?: string) =>
         assessmentRequest<QuestionDTO[]>(`/api/v1/assessment/questions${type ? `?type=${type}` : ''}`, {
             headers: orgId ? { 'X-Org-Id': orgId } : undefined,
+        }),
+
+    getSessionQuestions: (sessionId: string, type?: string) =>
+        assessmentRequest<QuestionDTO[]>(`/api/v1/assessment/sessions/${sessionId}/questions${type ? `?type=${type}` : ''}`, {
+            method: 'GET',
         }),
 
     publishQuestion: (id: string) =>

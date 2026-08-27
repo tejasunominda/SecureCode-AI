@@ -153,7 +153,6 @@ class AuthIntegrationTest {
 
         // Then login
         LoginRequest loginReq = new LoginRequest(
-                regRes.orgId(),
                 "login@example.com",
                 "MySecurePass123!",
                 null, null, null, null, null, null
@@ -190,7 +189,6 @@ class AuthIntegrationTest {
 
         // Login with wrong password
         LoginRequest loginReq = new LoginRequest(
-                regRes.orgId(),
                 "wrongpw@example.com",
                 "WrongPass123!",
                 null, null, null, null, null, null
@@ -206,7 +204,6 @@ class AuthIntegrationTest {
     @Test
     void login_withNonExistentUser_returns401() throws Exception {
         LoginRequest loginReq = new LoginRequest(
-                java.util.UUID.randomUUID(),
                 "nonexistent@example.com",
                 "SomePass123!",
                 null, null, null, null, null, null

@@ -15,7 +15,7 @@ COPY proctoring-service/ proctoring-service/
 COPY reporting-service/ reporting-service/
 COPY notification-service/ notification-service/
 
-RUN --mount=type=cache,target=/root/.m2 mvn -q -pl ${SERVICE_NAME} -am package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -q -pl ${SERVICE_NAME} -am clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 

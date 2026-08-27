@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, Users, BarChart3, ShieldCheck, BookOpen, Settings, Eye, Building2, FileText, ScrollText } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/cn";
 
 export interface SidebarNavItem {
@@ -70,6 +71,9 @@ export function Sidebar({ items, userRoles }: SidebarProps) {
         ))}
       </nav>
       <div className="border-t border-border-subtle p-4">
+        <div className="mb-3">
+          <ThemeToggle />
+        </div>
         <div className="rounded-md border border-border-subtle bg-surface-2 p-3">
           <p className="text-xs font-medium text-text-secondary">Need help?</p>
           <p className="mt-1 text-[11px] text-text-muted">Check our documentation or contact support.</p>

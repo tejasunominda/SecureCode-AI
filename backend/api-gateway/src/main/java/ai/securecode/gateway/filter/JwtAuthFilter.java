@@ -6,12 +6,13 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -19,7 +20,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 
 @Component
-public class JwtAuthFilter implements GatewayFilter, Ordered {
+public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Value("${securecode.jwt.secret}")
     private String secret;
@@ -32,15 +33,24 @@ public class JwtAuthFilter implements GatewayFilter, Ordered {
     }
 
     private static final String[] PUBLIC_PATHS = {
-            "/api/v1/auth/login",
-            "/api/v1/auth/register",
-            "/api/v1/auth/refresh",
-            "/api/v1/auth/forgot-password",
-            "/api/v1/auth/reset-password",
-            "/api/v1/assessment/candidate/start/",
-            "/ws/",
-            "/actuator"
+            "/api/v1/auth/**",
+            "/api/v1/assessment/candidate/**",
+            "/api/v1/assessment/sessions/*/answer",
+            "/api/v1/assessment/sessions/*/code",
+            "/api/v1/assessment/sessions/*/code/run",
+            "/api/v1/assessment/sessions/*/submit",
+            "/api/v1/assessment/sessions/*/consent",
+            "/api/v1/assessment/sessions/*/autosave",
+            "/api/v1/assessment/sessions/*/questions",
+            "/api/v1/assessment/sessions/*/report",
+            "/api/v1/assessment/sessions/*/proctoring",
+            "/api/v1/assessment/sessions/*/proctoring/detailed",
+            "/api/v1/assessment/questions",
+            "/ws/**",
+            "/actuator/**"
     };
+
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -48,7 +58,7 @@ public class JwtAuthFilter implements GatewayFilter, Ordered {
         String path = request.getPath().value();
 
         for (String publicPath : PUBLIC_PATHS) {
-            if (path.startsWith(publicPath)) {
+            if (pathMatcher.match(publicPath, path)) {
                 return chain.filter(exchange);
             }
         }

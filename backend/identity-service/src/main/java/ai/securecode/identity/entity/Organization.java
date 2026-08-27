@@ -9,8 +9,14 @@ import java.util.UUID;
 public class Organization {
 
     @Id
-    @GeneratedValue
     private UUID id;
+
+    @PrePersist
+    void onCreate() {
+        if (id == null) {
+            id = UUID.randomUUID();
+        }
+    }
 
     @Column(name = "parent_org_id")
     private UUID parentOrgId;

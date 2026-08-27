@@ -7,7 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -20,9 +20,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                        ApiKeyAuthenticationFilter apiKeyAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
     }
 
     // SECURITY: never combine a wildcard origin with allowCredentials(true) —
@@ -43,6 +46,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(ctx -> ctx.requireExplicitSave(false))
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/actuator/**").permitAll();
                     if (permitAll) {
@@ -51,8 +55,9 @@ public class SecurityConfig {
                         auth.anyRequest().authenticated();
                     }
                 });
+        http.addFilterBefore(apiKeyAuthenticationFilter, AuthorizationFilter.class);
         if (jwtFilterEnabled) {
-            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            http.addFilterBefore(jwtAuthenticationFilter, AuthorizationFilter.class);
         }
         return http.build();
     }

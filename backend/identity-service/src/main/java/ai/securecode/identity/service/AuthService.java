@@ -1,15 +1,18 @@
 package ai.securecode.identity.service;
 
 import ai.securecode.common.exception.ApiException;
+import ai.securecode.identity.client.NotificationEmailRequest;
 import ai.securecode.identity.config.Argon2PasswordEncoder;
 import ai.securecode.identity.dto.*;
 import ai.securecode.identity.entity.*;
 import ai.securecode.identity.repository.*;
 import ai.securecode.identity.security.JwtService;
 import io.jsonwebtoken.Claims;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,6 +35,13 @@ public class AuthService {
     private final PasswordValidator passwordValidator;
     private final AuditLogService auditLogService;
     private final DeviceFingerprintService deviceFingerprintService;
+    private final RestTemplate restTemplate;
+
+    @Value("${securecode.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
+    @Value("${securecode.notification.url:http://notification-service:8086}")
+    private String notificationUrl;
 
     public AuthService(OrganizationRepository orgRepo,
                        AppUserRepository userRepo,
@@ -42,7 +52,8 @@ public class AuthService {
                        JwtService jwtService,
                        PasswordValidator passwordValidator,
                        AuditLogService auditLogService,
-                       DeviceFingerprintService deviceFingerprintService) {
+                       DeviceFingerprintService deviceFingerprintService,
+                       RestTemplate restTemplate) {
         this.orgRepo = orgRepo;
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
@@ -53,13 +64,14 @@ public class AuthService {
         this.passwordValidator = passwordValidator;
         this.auditLogService = auditLogService;
         this.deviceFingerprintService = deviceFingerprintService;
+        this.restTemplate = restTemplate;
     }
 
     public AuthResponse register(RegisterRequest req) {
         passwordValidator.validate(req.password());
 
         var org = new Organization();
-        org.setName(req.orgName());
+        org.setName(req.organizationName());
         org.setStatus("active");
         org = orgRepo.save(org);
 
@@ -95,11 +107,10 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest req) {
-        AppUser user = userRepo.findByOrgIdAndEmailAndDeletedAtIsNull(req.orgId(), req.email())
-                .orElseThrow(() -> {
-                    auditLogService.log(req.orgId(), null, "LOGIN_FAILED", "app_user", null);
-                    return new ApiException("INVALID_CREDENTIALS", HttpStatus.UNAUTHORIZED, "Invalid email or password");
-                });
+        AppUser user = userRepo.findFirstByEmailAndDeletedAtIsNull(req.email()).orElse(null);
+        if (user == null) {
+            throw new ApiException("INVALID_CREDENTIALS", HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
 
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             auditLogService.log(user.getOrgId(), user.getId(), "LOGIN_FAILED", "app_user", user.getId());
@@ -168,8 +179,7 @@ public class AuthService {
     }
 
     public void forgotPassword(ForgotPasswordRequest req) {
-        AppUser user = userRepo.findByOrgIdAndEmailAndDeletedAtIsNull(req.orgId(), req.email())
-                .orElse(null);
+        AppUser user = userRepo.findFirstByEmailAndDeletedAtIsNull(req.email()).orElse(null);
         if (user == null) return;
 
         PasswordResetToken token = new PasswordResetToken();
@@ -177,6 +187,25 @@ public class AuthService {
         token.setToken(UUID.randomUUID().toString().replace("-", ""));
         token.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
         resetTokenRepo.save(token);
+
+        String resetLink = frontendUrl + "/reset-password?token=" + token.getToken();
+        String body = "Click the link below to reset your SecureCode AI password:\n\n" + resetLink;
+        NotificationEmailRequest email = new NotificationEmailRequest(
+                user.getEmail(),
+                "Reset your SecureCode AI password",
+                body,
+                false
+        );
+
+        try {
+            var headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            var entity = new org.springframework.http.HttpEntity<>(email, headers);
+            restTemplate.postForEntity(notificationUrl + "/api/v1/notifications/email", entity, Void.class);
+        } catch (Exception e) {
+            // If notification service is unavailable, the token is still stored.
+            // A real deployment should retry or queue this.
+        }
     }
 
     public void resetPassword(ResetPasswordRequest req) {

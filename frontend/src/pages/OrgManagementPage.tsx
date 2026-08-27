@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { GlassCard, GlassButton, GlassInput, GlassBadge, GlassModal, GlassSelect } from '@/components/ui';
 import { toast } from '@/components/ui/toast/useToastStore';
 import { Building2, Users, Plus, Trash2, Shield, ChevronRight } from 'lucide-react';
@@ -22,6 +23,8 @@ interface SubOrg {
 }
 
 export default function OrgManagementPage() {
+  const user = useAuthStore((s) => s.user);
+  const orgId = user?.orgId;
   const [subOrgs, setSubOrgs] = useState<SubOrg[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [showCreateOrg, setShowCreateOrg] = useState(false);
@@ -31,13 +34,16 @@ export default function OrgManagementPage() {
   const [newUser, setNewUser] = useState({ email: '', role: 'HR' });
 
   useEffect(() => {
-    loadSubOrgs();
-    loadUsers();
-  }, []);
+    if (orgId) {
+      loadSubOrgs();
+      loadUsers();
+    }
+  }, [orgId]);
 
   const loadSubOrgs = async () => {
+    if (!orgId) return;
     try {
-      const data = await api.get<SubOrg[]>('/api/v1/auth/orgs/sub-orgs');
+      const data = await api.get<SubOrg[]>(`/api/v1/orgs/${orgId}/sub-orgs`);
       setSubOrgs(data);
     } catch {
       setSubOrgs([]);
@@ -45,8 +51,9 @@ export default function OrgManagementPage() {
   };
 
   const loadUsers = async () => {
+    if (!orgId) return;
     try {
-      const data = await api.get<OrgUser[]>('/api/v1/auth/orgs/users');
+      const data = await api.get<OrgUser[]>(`/api/v1/orgs/${orgId}/users`);
       setUsers(data);
     } catch {
       setUsers([]);
@@ -54,8 +61,9 @@ export default function OrgManagementPage() {
   };
 
   const handleCreateOrg = async () => {
+    if (!orgId) return;
     try {
-      await api.post('/api/v1/auth/orgs/sub-orgs', newOrg);
+      await api.post(`/api/v1/orgs/${orgId}/sub-orgs`, { ...newOrg, parentOrgId: orgId });
       toast.success('Sub-organization created');
       setShowCreateOrg(false);
       setNewOrg({ name: '', tier: 'starter', dataResidency: 'us' });
@@ -66,8 +74,12 @@ export default function OrgManagementPage() {
   };
 
   const handleInviteUser = async () => {
+    if (!orgId) return;
     try {
-      await api.post('/api/v1/auth/orgs/users/invite', newUser);
+      await api.post(`/api/v1/orgs/${orgId}/users`, {
+        email: newUser.email,
+        roles: [newUser.role],
+      });
       toast.success('User invited successfully');
       setShowInviteUser(false);
       setNewUser({ email: '', role: 'HR' });
@@ -78,8 +90,9 @@ export default function OrgManagementPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    if (!orgId) return;
     try {
-      await api.delete(`/api/v1/auth/orgs/users/${userId}`);
+      await api.patch(`/api/v1/orgs/${orgId}/users/${userId}`, { status: 'inactive' });
       toast.success('User removed');
       loadUsers();
     } catch (e: any) {

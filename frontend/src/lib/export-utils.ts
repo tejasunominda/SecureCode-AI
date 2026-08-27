@@ -70,9 +70,12 @@ export function parseCSV(text: string): string[][] {
   return rows;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+
 export async function downloadReport(url: string, format: 'csv' | 'pdf', filename: string) {
-  const response = await fetch(`${url}?format=${format}`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem('securecode_token')}` },
+  const token = localStorage.getItem('securecode_access_token');
+  const response = await fetch(`${API_BASE_URL}${url}?format=${format}`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Export failed: ${response.statusText}`);
   const blob = await response.blob();

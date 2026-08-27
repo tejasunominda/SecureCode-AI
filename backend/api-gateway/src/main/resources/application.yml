@@ -11,7 +11,6 @@ spring:
   cloud:
     gateway:
       default-filters:
-        - JwtAuthFilter
         - name: RequestRateLimiter
           args:
             key-resolver: "#{@userKeyResolver}"
@@ -29,6 +28,14 @@ spring:
           uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: identity-service
+        - id: identity-orgs
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/orgs/**
           filters:
             - name: CircuitBreaker
               args:

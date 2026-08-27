@@ -6,14 +6,20 @@ import ai.securecode.assessment.entity.*;
 import ai.securecode.assessment.repository.*;
 import ai.securecode.common.exception.ApiException;
 import ai.securecode.common.dto.PageResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -69,6 +75,11 @@ public class AssessmentService {
         this.questionVersionHistoryRepo = questionVersionHistoryRepo;
         this.importMapper = importMapper;
     }
+
+    @Value("${securecode.execution.url:http://execution-service:8083}")
+    private String executionUrl;
+
+    private final RestTemplate executionRestTemplate = new RestTemplate();
 
     // ─── Applicant Management ───
 
@@ -179,14 +190,19 @@ public class AssessmentService {
         link.setStatus("used");
         linkRepo.save(link);
 
-        List<Question> poolQuestions = questionRepo.findByOrgIdAndTypeAndStatus(
-                link.getOrgId(), "coding", "published");
-        List<Question> randomized = poolQuestions.stream()
-                .filter(Question::isRandomizePool)
-                .toList();
-        if (!randomized.isEmpty()) {
+        List<String> sectionTypes = java.util.List.of("aptitude", "reasoning", "coding");
+        java.util.List<UUID> selectedIds = new java.util.ArrayList<>();
+        for (String type : sectionTypes) {
+            List<Question> pool = questionRepo.findByOrgIdAndTypeAndStatus(
+                    link.getOrgId(), type, "published");
+            java.util.List<Question> randomized = new java.util.ArrayList<>(pool);
             java.util.Collections.shuffle(randomized);
+            randomized.stream()
+                    .limit(3)
+                    .forEach(q -> selectedIds.add(q.getId()));
         }
+        session.setSessionQuestionIds(selectedIds.stream().map(UUID::toString).collect(java.util.stream.Collectors.joining(",")));
+        session = sessionRepo.save(session);
 
         return session;
     }
@@ -298,12 +314,11 @@ public class AssessmentService {
             return List.of();
         }
 
-        List<RunCodeResponse.TestCaseResult> results = new java.util.ArrayList<>();
-        javax.script.ScriptEngine engine = null;
-        if ("javascript".equalsIgnoreCase(language)) {
-            javax.script.ScriptEngineManager manager = new javax.script.ScriptEngineManager();
-            engine = manager.getEngineByName("javascript");
-        }
+        List<RunCodeResponse.TestCaseResult> results = new ArrayList<>();
+        boolean supported = "python".equalsIgnoreCase(language)
+                || "python3".equalsIgnoreCase(language)
+                || "javascript".equalsIgnoreCase(language)
+                || "js".equalsIgnoreCase(language);
 
         for (String line : testCasesStr.split("\n")) {
             line = line.trim();
@@ -318,53 +333,56 @@ public class AssessmentService {
                 String after = line.substring(arrowIdx + 2).trim();
 
                 int inputIdx = before.toLowerCase().indexOf("input:");
-                if (inputIdx >= 0) {
-                    input = before.substring(inputIdx + 6).trim();
-                } else {
-                    input = before;
-                }
+                input = inputIdx >= 0 ? before.substring(inputIdx + 6).trim() : before;
 
                 int outputIdx = after.toLowerCase().indexOf("output:");
-                if (outputIdx >= 0) {
-                    expected = after.substring(outputIdx + 7).trim();
-                } else {
-                    expected = after;
-                }
+                expected = outputIdx >= 0 ? after.substring(outputIdx + 7).trim() : after;
             }
 
             if (input == null || expected == null) continue;
 
-            String actual = "";
-            boolean passed = false;
-            long startTime = System.nanoTime();
-
-            if (engine != null) {
-                try {
-                    engine.eval(code);
-                    Object result;
-                    if (input.startsWith("\"") || input.startsWith("'")) {
-                        String strInput = input.replaceAll("^['\"]|['\"]$", "");
-                        result = engine.eval("solution(" + input + ")");
-                    } else {
-                        result = engine.eval("solution(" + input + ")");
-                    }
-                    actual = result != null ? result.toString() : "null";
-                    String expectedClean = expected.replaceAll("^['\"]|['\"]$", "");
-                    passed = actual.equals(expectedClean) || actual.equals(expected);
-                } catch (Exception e) {
-                    actual = "Error: " + e.getMessage();
-                    passed = false;
-                }
-            } else {
-                actual = "Not executed (language not supported for in-browser evaluation)";
-                passed = false;
+            if (!supported) {
+                results.add(new RunCodeResponse.TestCaseResult(input, expected,
+                        "Not executed (language not supported for remote evaluation)", false, 0L));
+                continue;
             }
 
-            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
-            results.add(new RunCodeResponse.TestCaseResult(input, expected, actual, passed, runtimeMs));
+            String callArgs = input.startsWith("\"") || input.startsWith("'") ? input : input;
+            String fullCode;
+            if ("python".equalsIgnoreCase(language) || "python3".equalsIgnoreCase(language)) {
+                fullCode = code + "\nprint(solution(" + callArgs + "))";
+            } else {
+                fullCode = code + "\nconsole.log(solution(" + callArgs + "));";
+            }
+
+            ExecutionRunRequest execReq = new ExecutionRunRequest(
+                    language, fullCode, null, expected, "exact", null);
+            ExecutionRunResponse resp = executeCode(execReq);
+
+            String actual = resp.stdout() != null ? resp.stdout().trim() : "";
+            String expectedClean = expected.replaceAll("^['\"]|['\"]$", "");
+            boolean passed = "completed".equals(resp.status()) && actual.equals(expectedClean);
+            if (!"completed".equals(resp.status())) {
+                actual = "Error: " + (resp.error() != null ? resp.error()
+                        : (resp.stderr() != null ? resp.stderr().trim() : "unknown"));
+            }
+
+            results.add(new RunCodeResponse.TestCaseResult(input, expected, actual, passed, resp.runtimeMs()));
         }
 
         return results;
+    }
+
+    private ExecutionRunResponse executeCode(ExecutionRunRequest req) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<ExecutionRunRequest> entity = new HttpEntity<>(req, headers);
+            return executionRestTemplate.postForObject(
+                    executionUrl + "/api/v1/execution/run/sync", entity, ExecutionRunResponse.class);
+        } catch (Exception e) {
+            return new ExecutionRunResponse("", e.getMessage(), -1, 0L, 0L, "error", e.getMessage());
+        }
     }
 
     // ─── Candidate: Submit/Finish Test ───
@@ -457,6 +475,31 @@ public class AssessmentService {
         return questionRepo.findByOrgIdOrderByCreatedAtDesc(orgId).stream()
                 .map(this::toQuestionResponse)
                 .collect(Collectors.toList());
+    }
+
+    public List<QuestionResponse> getSessionQuestions(UUID sessionId, String type) {
+        AssessmentSession session = sessionRepo.findById(sessionId)
+                .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND, "Session not found"));
+
+        if (session.getSessionQuestionIds() != null && !session.getSessionQuestionIds().isBlank()) {
+            List<UUID> ids = java.util.Arrays.stream(session.getSessionQuestionIds().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(UUID::fromString)
+                    .toList();
+            List<Question> pinned = questionRepo.findAllById(ids);
+            java.util.stream.Stream<Question> result = pinned.stream();
+            if (type != null && !type.isEmpty()) {
+                result = result.filter(q -> type.equalsIgnoreCase(q.getType()));
+            }
+            return result.map(this::toQuestionResponse).collect(Collectors.toList());
+        }
+
+        List<QuestionResponse> questions = listQuestions(session.getOrgId(), type);
+        if (type != null && !type.isEmpty()) {
+            return questions.stream().limit(3).collect(Collectors.toList());
+        }
+        return questions;
     }
 
     public QuestionResponse publishQuestion(UUID questionId) {

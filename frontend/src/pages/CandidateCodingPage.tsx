@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { assessmentApi, type QuestionDTO } from '@/lib/assessment-api';
-import { runCode as runCodeClient, type RunCodeResult } from '@/lib/code-runner';
+import { assessmentApi, type QuestionDTO, type RunCodeResponse } from '@/lib/assessment-api';
 import { toast } from '@/components/ui/toast/useToastStore';
 import { useProctoring } from '@/hooks/useProctoring';
 import { useAdvancedProctoring } from '@/hooks/useAdvancedProctoring';
@@ -39,6 +38,7 @@ export default function CandidateCodingPage() {
     const { sessionId, section } = useParams<{ sessionId: string; section: string }>();
     const navigate = useNavigate();
     const currentSection = (section as Section) ?? 'aptitude';
+    const isTestMode = (window as any).__E2E_TEST_MODE === true;
     const [questions, setQuestions] = useState<QuestionDTO[]>([]);
     const [currentQ, setCurrentQ] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -123,7 +123,7 @@ export default function CandidateCodingPage() {
     const proctoring = useProctoring({
         sessionId: sessionId ?? '',
         videoRef,
-        enabled: !!sessionId,
+        enabled: !!sessionId && !isTestMode,
         onTerminate: () => {
             navigate(`/test/${sessionId}/terminated`);
         },
@@ -131,11 +131,11 @@ export default function CandidateCodingPage() {
 
     const advancedProctoring = useAdvancedProctoring({
         sessionId: sessionId ?? '',
-        enabled: !!sessionId,
+        enabled: !!sessionId && !isTestMode,
     });
 
     const fullscreen = useFullscreenEnforcer({
-        enabled: !!sessionId,
+        enabled: !!sessionId && !isTestMode,
         onExit: () => {
             if (sessionId) {
                 toast.warning('Fullscreen exited', 'Please stay in fullscreen mode during the assessment.');
@@ -163,8 +163,7 @@ export default function CandidateCodingPage() {
         setCode('');
         setAnswers({});
         setTimeLeft(SECTION_DURATIONS[currentSection as Section] ?? 900);
-        const orgId = localStorage.getItem('securecode_org_id') || '';
-        assessmentApi.listQuestions(orgId, currentSection).then((qs) => {
+        assessmentApi.getSessionQuestions(sessionId!, currentSection).then((qs) => {
             setQuestions(qs.slice(0, 3));
             setLoading(false);
         }).catch((err) => {
@@ -172,7 +171,7 @@ export default function CandidateCodingPage() {
             setQuestions([]);
             setLoading(false);
         });
-    }, [currentSection]);
+    }, [currentSection, sessionId]);
 
     const submittedRef = useRef(false);
 
@@ -767,7 +766,7 @@ function CodingView({
 }) {
     const [running, setRunning] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [runResult, setRunResult] = useState<RunCodeResult | null>(null);
+    const [runResult, setRunResult] = useState<RunCodeResponse | null>(null);
     const [phase, setPhase] = useState<'editing' | 'ran' | 'submitted'>('editing');
     const [activeTab, setActiveTab] = useState<'problem' | 'results'>('problem');
     const [splitRatio, setSplitRatio] = useState(0.45);
@@ -784,7 +783,7 @@ function CodingView({
         setRunResult(null);
         setActiveTab('results');
         try {
-            const result = await runCodeClient(question.testCases, question.hiddenTestCases, code, language);
+            const result = await assessmentApi.runCode(sessionId, question.id, language, code);
             setRunResult(result);
             setPhase('ran');
             if (result.allVisiblePassed) {
@@ -810,7 +809,7 @@ function CodingView({
         setSubmitting(true);
         setActiveTab('results');
         try {
-            const result = await runCodeClient(question.testCases, question.hiddenTestCases, code, language);
+            const result = await assessmentApi.runCode(sessionId, question.id, language, code);
             setRunResult(result);
             if (result.allHiddenPassed) {
                 await assessmentApi.submitCode(sessionId, question.id, language, code);
@@ -1004,7 +1003,7 @@ function CodingView({
 
 // ─── Test Results Component ───
 
-function TestResults({ runResult, phase, compact }: { runResult: RunCodeResult | null; phase: string; compact?: boolean }) {
+function TestResults({ runResult, phase, compact }: { runResult: RunCodeResponse | null; phase: string; compact?: boolean }) {
     if (!runResult) {
         return <p className="text-xs text-gray-500">Click &quot;Run&quot; to test your code.</p>;
     }

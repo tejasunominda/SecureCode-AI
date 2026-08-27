@@ -11,20 +11,18 @@ import { toast } from '@/components/ui/toast/useToastStore';
 export default function LoginPage() {
     const navigate = useNavigate();
     const login = useAuthStore((s) => s.login);
-    const [orgId, setOrgId] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [showForgot, setShowForgot] = useState(false);
     const [forgotEmail, setForgotEmail] = useState('');
-    const [forgotOrgId, setForgotOrgId] = useState('');
     const [forgotLoading, setForgotLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await login(orgId, email, password);
+            await login(email, password);
             toast.success('Welcome back!', 'You have been signed in successfully.');
             const state = useAuthStore.getState();
             const isHr = state.user?.roles?.some(r => r.toLowerCase().includes('hr'));
@@ -46,11 +44,10 @@ export default function LoginPage() {
         }
         setForgotLoading(true);
         try {
-            await api.post('/api/v1/auth/forgot-password', { email: forgotEmail, orgId: forgotOrgId });
+            await api.post('/api/v1/auth/forgot-password', { email: forgotEmail });
             toast.success('Reset link sent', 'Check your email for password reset instructions.');
             setShowForgot(false);
             setForgotEmail('');
-            setForgotOrgId('');
         } catch (err) {
             const message = err instanceof ApiError ? err.message : 'Failed to send reset link';
             toast.danger('Request failed', message);
@@ -115,13 +112,6 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} aria-label="Sign in form" className="flex flex-col gap-4">
                         <GlassInput
-                            label="Organization ID"
-                            placeholder="Enter your org UUID"
-                            value={orgId}
-                            onChange={(e) => setOrgId(e.target.value)}
-                            required
-                        />
-                        <GlassInput
                             label="Email"
                             type="email"
                             placeholder="you@company.com"
@@ -178,16 +168,8 @@ export default function LoginPage() {
         >
             <form onSubmit={handleForgotPassword} className="space-y-4">
                 <p className="text-sm text-text-secondary">
-                    Enter your organization ID and email. We'll send a password reset link to your email.
+                    Enter your email. We'll send a password reset link to your email.
                 </p>
-                <GlassInput
-                    label="Organization ID"
-                    name="forgotOrgId"
-                    placeholder="Enter your org UUID"
-                    value={forgotOrgId}
-                    onChange={(e) => setForgotOrgId(e.target.value)}
-                    required
-                />
                 <GlassInput
                     label="Email"
                     name="forgotEmail"

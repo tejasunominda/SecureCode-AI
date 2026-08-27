@@ -13,7 +13,7 @@ interface AuthState {
     accessToken: string | null;
     refreshToken: string | null;
     isAuthenticated: boolean;
-    login: (orgId: string, email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, orgName: string, role: string) => Promise<void>;
     refresh: () => Promise<void>;
     logout: () => void;
@@ -63,8 +63,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     refreshToken: initial.refreshToken,
     isAuthenticated: initial.isAuthenticated,
 
-    login: async (orgId, email, password) => {
-        const res = await api.post<AuthResponse>('/api/v1/auth/login', { orgId, email, password });
+    login: async (email, password) => {
+        const res = await api.post<AuthResponse>('/api/v1/auth/login', { email, password });
         localStorage.setItem('securecode_access_token', res.accessToken);
         localStorage.setItem('securecode_refresh_token', res.refreshToken);
         localStorage.setItem('securecode_org_id', res.orgId);
@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     register: async (email, password, orgName, role) => {
-        const res = await api.post<AuthResponse>('/api/v1/auth/register', { email, password, orgName, role });
+        const res = await api.post<AuthResponse>('/api/v1/auth/register', { email, password, organizationName: orgName, role });
         localStorage.setItem('securecode_access_token', res.accessToken);
         localStorage.setItem('securecode_refresh_token', res.refreshToken);
         localStorage.setItem('securecode_org_id', res.orgId);

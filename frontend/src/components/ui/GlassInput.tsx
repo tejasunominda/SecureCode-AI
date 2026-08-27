@@ -1,7 +1,7 @@
 import { forwardRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-export interface GlassInputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface GlassInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'children'> {
   label?: string;
   error?: string;
   hint?: string;
@@ -13,7 +13,7 @@ export interface GlassInputProps extends InputHTMLAttributes<HTMLInputElement> {
  * styling per field.
  */
 export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
-  ({ className, label, error, hint, id, children, ...props }, ref) => {
+  ({ className, label, error, hint, id, ...props }, ref) => {
     const inputId = id ?? props.name ?? `input-${props.placeholder?.replace(/\s+/g, '-').toLowerCase()}`;
     return (
       <div className="flex flex-col gap-1.5">
@@ -38,9 +38,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
           {...props}
-        >
-          {children}
-        </input>
+        />
         {error ? (
           <p id={`${inputId}-error`} className="text-xs text-danger">
             {error}

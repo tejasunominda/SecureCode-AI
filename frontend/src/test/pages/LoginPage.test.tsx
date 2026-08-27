@@ -42,7 +42,6 @@ describe("LoginPage", () => {
   it("renders all form fields and submit button", () => {
     renderLogin();
 
-    expect(screen.getByPlaceholderText(/Enter your org UUID/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/you@company.com/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Enter your password/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign In/i })).toBeInTheDocument();
@@ -72,9 +71,6 @@ describe("LoginPage", () => {
 
     renderLogin();
 
-    fireEvent.change(screen.getByPlaceholderText(/Enter your org UUID/i), {
-      target: { value: "org-uuid-1" },
-    });
     fireEvent.change(screen.getByPlaceholderText(/you@company.com/i), {
       target: { value: "test@test.com" },
     });
@@ -102,9 +98,6 @@ describe("LoginPage", () => {
 
     renderLogin();
 
-    fireEvent.change(screen.getByPlaceholderText(/Enter your org UUID/i), {
-      target: { value: "org-uuid-1" },
-    });
     fireEvent.change(screen.getByPlaceholderText(/you@company.com/i), {
       target: { value: "bad@test.com" },
     });
@@ -131,9 +124,6 @@ describe("LoginPage", () => {
 
     renderLogin();
 
-    fireEvent.change(screen.getByPlaceholderText(/Enter your org UUID/i), {
-      target: { value: "org-uuid-1" },
-    });
     fireEvent.change(screen.getByPlaceholderText(/you@company.com/i), {
       target: { value: "test@test.com" },
     });

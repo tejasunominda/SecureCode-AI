@@ -44,6 +44,9 @@ public class AssessmentSession {
     @Column(name = "proctoring_level_override")
     private String proctoringLevelOverride;
 
+    @Column(name = "session_question_ids", columnDefinition = "TEXT")
+    private String sessionQuestionIds;
+
     @Column(name = "accommodation_notes", columnDefinition = "TEXT")
     private String accommodationNotes;
 
@@ -76,6 +79,8 @@ public class AssessmentSession {
     public void setTimeMultiplier(Double timeMultiplier) { this.timeMultiplier = timeMultiplier; }
     public String getProctoringLevelOverride() { return proctoringLevelOverride; }
     public void setProctoringLevelOverride(String proctoringLevelOverride) { this.proctoringLevelOverride = proctoringLevelOverride; }
+    public String getSessionQuestionIds() { return sessionQuestionIds; }
+    public void setSessionQuestionIds(String sessionQuestionIds) { this.sessionQuestionIds = sessionQuestionIds; }
     public String getAccommodationNotes() { return accommodationNotes; }
     public void setAccommodationNotes(String accommodationNotes) { this.accommodationNotes = accommodationNotes; }
     public java.util.UUID getAccommodationApprovedBy() { return accommodationApprovedBy; }

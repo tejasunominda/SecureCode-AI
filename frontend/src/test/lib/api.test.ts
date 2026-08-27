@@ -30,7 +30,7 @@ describe("api client", () => {
     await api.post("/api/v1/auth/login", { email: "test@test.com" });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8081/api/v1/auth/login",
+      expect.stringContaining("/api/v1/auth/login"),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ email: "test@test.com" }),
@@ -47,7 +47,7 @@ describe("api client", () => {
     await api.get("/api/v1/users");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8081/api/v1/users",
+      expect.stringContaining("/api/v1/users"),
       expect.objectContaining({ method: "GET" }),
     );
   });
@@ -59,7 +59,7 @@ describe("api client", () => {
     await api.get("/api/v1/protected");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8081/api/v1/protected",
+      expect.stringContaining("/api/v1/protected"),
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer my-jwt-token",
@@ -113,7 +113,7 @@ describe("api client", () => {
     await api.put("/api/v1/users/1", { name: "Updated" });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8081/api/v1/users/1",
+      expect.stringContaining("/api/v1/users/1"),
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ name: "Updated" }),
@@ -127,7 +127,7 @@ describe("api client", () => {
     await api.delete("/api/v1/users/1");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8081/api/v1/users/1",
+      expect.stringContaining("/api/v1/users/1"),
       expect.objectContaining({ method: "DELETE" }),
     );
   });

@@ -1,8 +1,70 @@
 package ai.securecode.identity.config;
 
-import ai.securecode.common.exception.AbstractApiExceptionHandler;
+import ai.securecode.common.dto.ApiErrorResponse;
+import ai.securecode.common.exception.ApiException;
+import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import java.util.UUID;
 
 @RestControllerAdvice
-public class IdentityExceptionHandler extends AbstractApiExceptionHandler {
+public class IdentityExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(IdentityExceptionHandler.class);
+    private static final String REQUEST_ID_MDC_KEY = "requestId";
+
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(ApiErrorResponse.of(ex.getCode(), ex.getMessage(), ex.getField(), currentRequestId()));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        FieldError fieldError = ex.getBindingResult().getFieldError();
+        String field = fieldError != null ? fieldError.getField() : null;
+        String message = fieldError != null ? fieldError.getDefaultMessage() : "Validation failed";
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiErrorResponse.of("VALIDATION_ERROR", message, field, currentRequestId()));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiErrorResponse.of("VALIDATION_ERROR", ex.getMessage(), null, currentRequestId()));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of("MISSING_HEADER", "Required header '" + ex.getHeaderName() + "' is missing", ex.getHeaderName(), currentRequestId()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of("INVALID_PARAMETER", "Invalid parameter value", ex.getName(), currentRequestId()));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex) {
+        log.error("Unexpected error in identity-service", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of("INTERNAL_ERROR", "An unexpected error occurred", null, currentRequestId()));
+    }
+
+    private String currentRequestId() {
+        String requestId = MDC.get(REQUEST_ID_MDC_KEY);
+        return requestId != null ? requestId : "req_" + UUID.randomUUID();
+    }
 }

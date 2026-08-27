@@ -5,7 +5,7 @@ import { GlassCard, GlassButton, GlassBadge, GlassInput, GlassSelect, GlassTexta
 import { toast } from '@/components/ui/toast/useToastStore';
 import { exportToCSV, exportToJSON, parseCSV } from '@/lib/export-utils';
 import { useDebounce } from '@/hooks/useUtils';
-import { Plus, Search, Edit2, Upload, Download, Copy, CheckCircle, Filter, Send, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Plus, Search, Edit2, Upload, Download, Copy, CheckCircle, Filter, Send, ThumbsUp, ThumbsDown, Eye } from 'lucide-react';
 
 const PAGE_SIZE = 10;
 
@@ -22,6 +22,8 @@ export default function QuestionBankPage() {
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewQuestion, setPreviewQuestion] = useState<QuestionDTO | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<QuestionDTO | null>(null);
   const [cloning, setCloning] = useState(false);
 
@@ -248,6 +250,11 @@ export default function QuestionBankPage() {
     fetchQuestions();
   };
 
+  const openPreview = (q: QuestionDTO) => {
+    setPreviewQuestion(q);
+    setShowPreviewModal(true);
+  };
+
   const openEdit = (q: QuestionDTO) => {
     setEditingQuestion(q);
     setFormType(q.type);
@@ -344,6 +351,7 @@ export default function QuestionBankPage() {
               { key: 'version', header: 'Ver', render: (q) => <span className="text-xs text-text-muted">v{q.version}</span> },
               { key: 'actions', header: 'Actions', render: (q) => (
                 <div className="flex items-center gap-1">
+                  <button onClick={() => openPreview(q)} className="rounded p-1.5 text-text-secondary hover:bg-surface-hover" title="Preview"><Eye className="h-3.5 w-3.5" /></button>
                   <button onClick={() => openEdit(q)} className="rounded p-1.5 text-text-secondary hover:bg-surface-hover" title="Edit"><Edit2 className="h-3.5 w-3.5" /></button>
                   <button onClick={() => handleClone(q)} disabled={cloning} className="rounded p-1.5 text-text-secondary hover:bg-surface-hover" title="Clone"><Copy className="h-3.5 w-3.5" /></button>
                   {(q.status === 'draft' || q.status === 'rejected') && (
@@ -444,6 +452,52 @@ export default function QuestionBankPage() {
             <GlassButton variant="primary" onClick={handleImport} disabled={!importText.trim() || importing} isLoading={importing}>Import</GlassButton>
           </div>
         </div>
+      </GlassModal>
+
+      {/* Preview Modal */}
+      <GlassModal open={showPreviewModal} onClose={() => setShowPreviewModal(false)} title="Preview Question" className="max-w-2xl">
+        {previewQuestion && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <GlassBadge tone="info">{previewQuestion.type}</GlassBadge>
+              <GlassBadge tone={previewQuestion.difficulty === 'easy' ? 'success' : previewQuestion.difficulty === 'medium' ? 'warning' : 'danger'}>{previewQuestion.difficulty}</GlassBadge>
+              <GlassBadge tone="neutral">{previewQuestion.status}</GlassBadge>
+              {previewQuestion.tags && previewQuestion.tags.split(',').map((t) => (
+                <span key={t} className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-text-muted">{t.trim()}</span>
+              ))}
+            </div>
+            <p className="whitespace-pre-wrap text-base text-text-primary">{previewQuestion.body}</p>
+            {previewQuestion.type !== 'coding' ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {(['A', 'B', 'C', 'D'] as const).map((opt) => {
+                  const value = previewQuestion[`option${opt}` as keyof QuestionDTO] as string | null;
+                  const isCorrect = previewQuestion.correctOption === opt;
+                  return value ? (
+                    <div key={opt} className={`rounded-md border p-3 ${isCorrect ? 'border-success bg-success/10' : 'border-border bg-surface-2'}`}>
+                      <span className={`text-sm font-medium ${isCorrect ? 'text-success' : 'text-text-secondary'}`}>Option {opt}</span>
+                      <p className={`mt-1 text-sm ${isCorrect ? 'text-text-primary' : 'text-text-secondary'}`}>{value}</p>
+                      {isCorrect && <p className="mt-1 text-xs text-success">Correct answer</p>}
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <h4 className="mb-1 text-sm font-medium text-text-secondary">Visible Test Cases</h4>
+                  <pre className="whitespace-pre-wrap rounded-md border border-border bg-surface-2 p-3 text-xs text-text-secondary">{previewQuestion.testCases || 'No visible test cases'}</pre>
+                </div>
+                <div>
+                  <h4 className="mb-1 text-sm font-medium text-text-secondary">Hidden Test Cases</h4>
+                  <pre className="whitespace-pre-wrap rounded-md border border-border bg-surface-2 p-3 text-xs text-text-secondary">{previewQuestion.hiddenTestCases || 'No hidden test cases'}</pre>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end pt-2">
+              <GlassButton variant="secondary" onClick={() => setShowPreviewModal(false)}>Close</GlassButton>
+            </div>
+          </div>
+        )}
       </GlassModal>
     </div>
   );

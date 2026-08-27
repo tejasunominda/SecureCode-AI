@@ -5,20 +5,18 @@ import ai.securecode.execution.dto.ExecuteResponse;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.WaitContainerResultCallback;
-import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Capability;
 import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
+import com.github.dockerjava.core.command.LogContainerResultCallback;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -51,28 +49,6 @@ public class DockerCodeExecutor {
                 .dockerHost(config.getDockerHost())
                 .build();
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
-    }
-
-    /**
-     * Baseline hardened container configuration applied to every sandbox run
-     * (defense-in-depth beyond network isolation, per SRS C.11 / F.6):
-     * <ul>
-     *   <li>{@code cap-drop=ALL} — no Linux capabilities beyond the unprivileged default</li>
-     *   <li>{@code pids-limit} — bounds fork-bomb / resource-exhaustion attempts</li>
-     *   <li>{@code readonly rootfs} — only the bind-mounted /tmp workdir is writable</li>
-     *   <li>{@code security-opt=no-new-privileges} — blocks setuid/setgid privilege escalation</li>
-     * </ul>
-     */
-    private HostConfig hardenedHostConfig(Path tmpDir) {
-        return HostConfig.newHostConfig()
-                .withMemory(memoryLimitMb * 1024 * 1024)
-                .withCpuCount(1L)
-                .withNetworkMode("none")
-                .withReadonlyRootfs(true)
-                .withCapDrop(Capability.ALL)
-                .withPidsLimit(64L)
-                .withSecurityOpts(java.util.List.of("no-new-privileges"))
-                .withBinds(new Bind(tmpDir.toString(), new Volume("/tmp")));
     }
 
     public ExecuteResponse execute(ExecuteRequest req) {
@@ -138,20 +114,22 @@ public class DockerCodeExecutor {
     }
 
     private ExecuteResponse executeInContainer(ExecuteRequest req, String image, String runCmd, String filePath) {
-        Path tmpDir;
         try {
-            tmpDir = Files.createTempDirectory("securecode-exec");
-            String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
-            Files.writeString(tmpDir.resolve(fileName), req.code());
-        } catch (IOException e) {
-            return ExecuteResponse.error("Failed to prepare execution: " + e.getMessage());
-        }
+            String base64Code = Base64.getEncoder().encodeToString(req.code().getBytes(StandardCharsets.UTF_8));
+            String shellScript = "printf '%s' '" + base64Code + "' | base64 -d > " + filePath
+                    + " && " + runCmd + " " + filePath;
 
-        try {
-            HostConfig hostConfig = hardenedHostConfig(tmpDir);
+            HostConfig hostConfig = HostConfig.newHostConfig()
+                    .withMemory(memoryLimitMb * 1024 * 1024)
+                    .withCpuCount(1L)
+                    .withNetworkMode("none")
+                    .withReadonlyRootfs(false)
+                    .withCapDrop(Capability.ALL)
+                    .withPidsLimit(64L)
+                    .withSecurityOpts(java.util.List.of("no-new-privileges"));
 
             CreateContainerResponse container = dockerClient.createContainerCmd(image)
-                    .withCmd(runCmd, filePath)
+                    .withCmd("sh", "-c", shellScript)
                     .withHostConfig(hostConfig)
                     .withWorkingDir("/tmp")
                     .exec();
@@ -165,7 +143,7 @@ public class DockerCodeExecutor {
 
             if (!finished) {
                 dockerClient.killContainerCmd(container.getId()).exec();
-                cleanup(tmpDir);
+                dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
@@ -178,193 +156,33 @@ public class DockerCodeExecutor {
             int exitCode = waitResult;
 
             dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
-            cleanup(tmpDir);
 
             return ExecuteResponse.success(stdout, stderr, exitCode, runtimeMs);
         } catch (Exception e) {
-            cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }
     }
 
     private ExecuteResponse executeJavaInContainer(ExecuteRequest req) {
-        Path tmpDir;
         try {
-            tmpDir = Files.createTempDirectory("securecode-exec");
-            Files.writeString(tmpDir.resolve("Solution.java"), req.code());
-        } catch (IOException e) {
-            return ExecuteResponse.error("Failed to prepare execution: " + e.getMessage());
-        }
+            String base64Code = Base64.getEncoder().encodeToString(req.code().getBytes(StandardCharsets.UTF_8));
+            String shellScript = "printf '%s' '" + base64Code + "' | base64 -d > /tmp/Solution.java"
+                    + " && javac /tmp/Solution.java"
+                    + " && java -cp /tmp Solution";
 
-        try {
-            HostConfig hostConfig = hardenedHostConfig(tmpDir);
+            HostConfig hostConfig = HostConfig.newHostConfig()
+                    .withMemory(memoryLimitMb * 1024 * 1024)
+                    .withCpuCount(1L)
+                    .withNetworkMode("none")
+                    .withReadonlyRootfs(false)
+                    .withCapDrop(Capability.ALL)
+                    .withPidsLimit(64L)
+                    .withSecurityOpts(java.util.List.of("no-new-privileges"));
 
-            CreateContainerResponse compileContainer = dockerClient.createContainerCmd("openjdk:21-slim")
-                    .withCmd("javac", "/tmp/Solution.java")
+            CreateContainerResponse container = dockerClient.createContainerCmd("eclipse-temurin:21-jdk")
+                    .withCmd("sh", "-c", shellScript)
                     .withHostConfig(hostConfig)
                     .withWorkingDir("/tmp")
-                    .exec();
-
-            dockerClient.startContainerCmd(compileContainer.getId()).exec();
-            boolean compiled = dockerClient.waitContainerCmd(compileContainer.getId())
-                    .exec(new WaitContainerResultCallback())
-                    .awaitCompletion(wallClockTimeoutMs, TimeUnit.MILLISECONDS);
-
-            if (!compiled) {
-                dockerClient.killContainerCmd(compileContainer.getId()).exec();
-                dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.timeout("Compilation exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
-            }
-
-            int compileResult =
-                    dockerClient.waitContainerCmd(compileContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
-
-            if (compileResult != 0) {
-                String compileErr = readContainerLogs(compileContainer.getId(), false);
-                dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.success("", compileErr, compileResult, 0);
-            }
-
-            dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-
-            CreateContainerResponse runContainer = dockerClient.createContainerCmd("openjdk:21-slim")
-                    .withCmd("java", "-cp", "/tmp", "Solution")
-                    .withHostConfig(hostConfig)
-                    .withWorkingDir("/tmp")
-                    .exec();
-
-            long startTime = System.nanoTime();
-            dockerClient.startContainerCmd(runContainer.getId()).exec();
-            boolean finished = dockerClient.waitContainerCmd(runContainer.getId())
-                    .exec(new WaitContainerResultCallback())
-                    .awaitCompletion(wallClockTimeoutMs, TimeUnit.MILLISECONDS);
-
-            if (!finished) {
-                dockerClient.killContainerCmd(runContainer.getId()).exec();
-                dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
-            }
-
-            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
-            int runResult =
-                    dockerClient.waitContainerCmd(runContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
-
-            String stdout = readContainerLogs(runContainer.getId(), true);
-            String stderr = readContainerLogs(runContainer.getId(), false);
-
-            dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
-            cleanup(tmpDir);
-
-            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
-        } catch (Exception e) {
-            cleanup(tmpDir);
-            return ExecuteResponse.error("Execution failed: " + e.getMessage());
-        }
-    }
-
-    private ExecuteResponse executeCompiledInContainer(ExecuteRequest req, String image,
-                                                        String compiler, String... compileArgs) {
-        Path tmpDir;
-        try {
-            tmpDir = Files.createTempDirectory("securecode-exec");
-            String srcFile = compileArgs[compileArgs.length - 1];
-            String fileName = srcFile.substring(srcFile.lastIndexOf("/") + 1);
-            Files.writeString(tmpDir.resolve(fileName), req.code());
-        } catch (IOException e) {
-            return ExecuteResponse.error("Failed to prepare execution: " + e.getMessage());
-        }
-
-        try {
-            HostConfig hostConfig = hardenedHostConfig(tmpDir);
-
-            String[] compileCmd = new String[compileArgs.length + 1];
-            compileCmd[0] = compiler;
-            System.arraycopy(compileArgs, 0, compileCmd, 1, compileArgs.length);
-
-            CreateContainerResponse compileContainer = dockerClient.createContainerCmd(image)
-                    .withCmd(compileCmd)
-                    .withHostConfig(hostConfig)
-                    .withWorkingDir("/tmp")
-                    .exec();
-
-            dockerClient.startContainerCmd(compileContainer.getId()).exec();
-            boolean compiled = dockerClient.waitContainerCmd(compileContainer.getId())
-                    .exec(new WaitContainerResultCallback())
-                    .awaitCompletion(wallClockTimeoutMs, TimeUnit.MILLISECONDS);
-
-            if (!compiled) {
-                dockerClient.killContainerCmd(compileContainer.getId()).exec();
-                dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.timeout("Compilation exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
-            }
-
-            int compileResult =
-                    dockerClient.waitContainerCmd(compileContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
-
-            if (compileResult != 0) {
-                String compileErr = readContainerLogs(compileContainer.getId(), false);
-                dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.success("", compileErr, compileResult, 0);
-            }
-
-            dockerClient.removeContainerCmd(compileContainer.getId()).withForce(true).exec();
-
-            CreateContainerResponse runContainer = dockerClient.createContainerCmd(image)
-                    .withCmd("/tmp/solution")
-                    .withHostConfig(hostConfig)
-                    .withWorkingDir("/tmp")
-                    .exec();
-
-            long startTime = System.nanoTime();
-            dockerClient.startContainerCmd(runContainer.getId()).exec();
-            boolean finished = dockerClient.waitContainerCmd(runContainer.getId())
-                    .exec(new WaitContainerResultCallback())
-                    .awaitCompletion(wallClockTimeoutMs, TimeUnit.MILLISECONDS);
-
-            if (!finished) {
-                dockerClient.killContainerCmd(runContainer.getId()).exec();
-                dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
-                cleanup(tmpDir);
-                return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
-            }
-
-            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
-            int runResult =
-                    dockerClient.waitContainerCmd(runContainer.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
-
-            String stdout = readContainerLogs(runContainer.getId(), true);
-            String stderr = readContainerLogs(runContainer.getId(), false);
-
-            dockerClient.removeContainerCmd(runContainer.getId()).withForce(true).exec();
-            cleanup(tmpDir);
-
-            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
-        } catch (Exception e) {
-            cleanup(tmpDir);
-            return ExecuteResponse.error("Execution failed: " + e.getMessage());
-        }
-    }
-
-    private ExecuteResponse executeSqlInContainer(ExecuteRequest req) {
-        Path tmpDir;
-        try {
-            tmpDir = Files.createTempDirectory("securecode-exec");
-            Files.writeString(tmpDir.resolve("solution.sql"), req.code());
-        } catch (IOException e) {
-            return ExecuteResponse.error("Failed to prepare execution: " + e.getMessage());
-        }
-
-        try {
-            HostConfig hostConfig = hardenedHostConfig(tmpDir);
-
-            CreateContainerResponse container = dockerClient.createContainerCmd("postgres:16-alpine")
-                    .withCmd("psql", "-c", "\\i /tmp/solution.sql")
-                    .withHostConfig(hostConfig)
                     .exec();
 
             long startTime = System.nanoTime();
@@ -376,7 +194,120 @@ public class DockerCodeExecutor {
             if (!finished) {
                 dockerClient.killContainerCmd(container.getId()).exec();
                 dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
-                cleanup(tmpDir);
+                return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
+            }
+
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
+            int runResult =
+                    dockerClient.waitContainerCmd(container.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
+
+            String stdout = readContainerLogs(container.getId(), true);
+            String stderr = readContainerLogs(container.getId(), false);
+
+            dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
+
+            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
+        } catch (Exception e) {
+            return ExecuteResponse.error("Execution failed: " + e.getMessage());
+        }
+    }
+
+    private ExecuteResponse executeCompiledInContainer(ExecuteRequest req, String image,
+                                                        String compiler, String... compileArgs) {
+        try {
+            String srcFile = compileArgs[compileArgs.length - 1];
+            int outputIndex = -1;
+            for (int i = 0; i < compileArgs.length - 1; i++) {
+                if ("-o".equals(compileArgs[i])) {
+                    outputIndex = i + 1;
+                    break;
+                }
+            }
+            String binary = outputIndex >= 0 ? compileArgs[outputIndex] : "/tmp/solution";
+            String compile = compiler + " " + java.util.Arrays.stream(compileArgs).collect(java.util.stream.Collectors.joining(" "));
+
+            String base64Code = Base64.getEncoder().encodeToString(req.code().getBytes(StandardCharsets.UTF_8));
+            String shellScript = "printf '%s' '" + base64Code + "' | base64 -d > " + srcFile
+                    + " && " + compile
+                    + " && " + binary;
+
+            HostConfig hostConfig = HostConfig.newHostConfig()
+                    .withMemory(memoryLimitMb * 1024 * 1024)
+                    .withCpuCount(1L)
+                    .withNetworkMode("none")
+                    .withReadonlyRootfs(false)
+                    .withCapDrop(Capability.ALL)
+                    .withPidsLimit(64L)
+                    .withSecurityOpts(java.util.List.of("no-new-privileges"));
+
+            CreateContainerResponse container = dockerClient.createContainerCmd(image)
+                    .withCmd("sh", "-c", shellScript)
+                    .withHostConfig(hostConfig)
+                    .withWorkingDir("/tmp")
+                    .exec();
+
+            long startTime = System.nanoTime();
+            dockerClient.startContainerCmd(container.getId()).exec();
+            boolean finished = dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitCompletion(wallClockTimeoutMs, TimeUnit.MILLISECONDS);
+
+            if (!finished) {
+                dockerClient.killContainerCmd(container.getId()).exec();
+                dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
+                return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
+            }
+
+            long runtimeMs = (System.nanoTime() - startTime) / 1_000_000;
+            int runResult =
+                    dockerClient.waitContainerCmd(container.getId()).exec(new WaitContainerResultCallback()).awaitStatusCode();
+
+            String stdout = readContainerLogs(container.getId(), true);
+            String stderr = readContainerLogs(container.getId(), false);
+
+            dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
+
+            return ExecuteResponse.success(stdout, stderr, runResult, runtimeMs);
+        } catch (Exception e) {
+            return ExecuteResponse.error("Execution failed: " + e.getMessage());
+        }
+    }
+
+    private ExecuteResponse executeSqlInContainer(ExecuteRequest req) {
+        try {
+            String base64Code = Base64.getEncoder().encodeToString(req.code().getBytes(StandardCharsets.UTF_8));
+            String shellScript = "printf '%s' '" + base64Code + "' | base64 -d > /tmp/solution.sql"
+                    + " && rm -rf /tmp/db"
+                    + " && initdb -D /tmp/db -U postgres --auth=trust --no-locale"
+                    + " && pg_ctl -D /tmp/db -l /tmp/pg.log -w start"
+                    + " && psql -h 127.0.0.1 -U postgres -f /tmp/solution.sql";
+
+            HostConfig hostConfig = HostConfig.newHostConfig()
+                    .withMemory(memoryLimitMb * 1024 * 1024)
+                    .withCpuCount(1L)
+                    .withNetworkMode("none")
+                    .withReadonlyRootfs(false)
+                    .withCapDrop(Capability.ALL)
+                    .withPidsLimit(64L)
+                    .withSecurityOpts(java.util.List.of("no-new-privileges"));
+
+            CreateContainerResponse container = dockerClient.createContainerCmd("postgres:16-alpine")
+                    .withUser("postgres")
+                    .withEntrypoint("sh", "-c", shellScript)
+                    .withHostConfig(hostConfig)
+                    .withWorkingDir("/tmp")
+                    .exec();
+
+            long sqlTimeoutMs = Math.max(wallClockTimeoutMs, 15000L);
+            long startTime = System.nanoTime();
+            dockerClient.startContainerCmd(container.getId()).exec();
+            boolean finished = dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitCompletion(sqlTimeoutMs, TimeUnit.MILLISECONDS);
+
+            if (!finished) {
+                dockerClient.killContainerCmd(container.getId()).exec();
+                dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
                 return ExecuteResponse.timeout("Process exceeded " + wallClockTimeoutMs + "ms wall-clock limit");
             }
 
@@ -388,18 +319,24 @@ public class DockerCodeExecutor {
             String stderr = readContainerLogs(container.getId(), false);
 
             dockerClient.removeContainerCmd(container.getId()).withForce(true).exec();
-            cleanup(tmpDir);
 
             return ExecuteResponse.success(stdout, stderr, result, runtimeMs);
         } catch (Exception e) {
-            cleanup(tmpDir);
             return ExecuteResponse.error("Execution failed: " + e.getMessage());
         }
     }
 
     private String readContainerLogs(String containerId, boolean stdout) {
         try {
-            com.github.dockerjava.core.command.LogContainerResultCallback callback = new com.github.dockerjava.core.command.LogContainerResultCallback();
+            StringBuilder output = new StringBuilder();
+            LogContainerResultCallback callback = new LogContainerResultCallback() {
+                @Override
+                public void onNext(com.github.dockerjava.api.model.Frame frame) {
+                    if (frame.getPayload() != null) {
+                        output.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
+                    }
+                }
+            };
             if (stdout) {
                 dockerClient.logContainerCmd(containerId)
                         .withStdOut(true)
@@ -411,19 +348,10 @@ public class DockerCodeExecutor {
                         .exec(callback)
                         .awaitCompletion();
             }
-            return callback.toString();
+            return output.toString();
         } catch (Exception e) {
             return "";
         }
     }
 
-    private void cleanup(Path dir) {
-        try {
-            Files.walk(dir)
-                    .sorted((a, b) -> b.compareTo(a))
-                    .forEach(p -> {
-                        try { Files.deleteIfExists(p); } catch (IOException ignored) {}
-                    });
-        } catch (IOException ignored) {}
-    }
 }

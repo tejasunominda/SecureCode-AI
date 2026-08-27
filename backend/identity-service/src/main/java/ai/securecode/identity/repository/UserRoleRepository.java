@@ -39,6 +39,7 @@ public class UserRoleRepository {
 
     public void save(UserRole userRole) {
         em.persist(userRole);
+        em.flush();
     }
 
     public void deleteByUserId(UUID userId) {

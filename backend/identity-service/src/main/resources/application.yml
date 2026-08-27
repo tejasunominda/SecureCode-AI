@@ -35,6 +35,11 @@ securecode:
     access-token-ttl: PT15M
     refresh-token-ttl: P7D
     issuer: securecode-ai
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:5173}
+  notification:
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8086}
+    api-key: ${NOTIFICATION_SERVICE_API_KEY:}
 
 sso:
   google:

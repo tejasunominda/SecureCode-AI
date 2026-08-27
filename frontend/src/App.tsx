@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toast/Toaster';
 import { toast } from '@/components/ui/toast/useToastStore';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import HRDashboardPage from '@/pages/HRDashboardPage';
 import CandidateInstructionsPage from '@/pages/CandidateInstructionsPage';
@@ -56,6 +57,7 @@ function App() {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/test/:token" element={<CandidateInstructionsPage />} />
                 <Route path="/test/:sessionId/:section" element={<CandidateCodingPage />} />
                 <Route path="/test/:sessionId/terminated" element={<div className="flex min-h-screen items-center justify-center bg-canvas"><div className="text-center"><h1 className="text-2xl font-semibold text-danger">Test Terminated</h1><p className="mt-2 text-sm text-text-secondary">Your test was terminated due to proctoring violations.</p></div></div>} />

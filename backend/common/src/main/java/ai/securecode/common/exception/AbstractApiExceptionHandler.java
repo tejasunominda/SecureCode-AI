@@ -2,6 +2,8 @@ package ai.securecode.common.exception;
 
 import ai.securecode.common.dto.ApiErrorResponse;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  */
 public abstract class AbstractApiExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(AbstractApiExceptionHandler.class);
     private static final String REQUEST_ID_MDC_KEY = "requestId";
 
     @ExceptionHandler(ApiException.class)
@@ -45,6 +48,7 @@ public abstract class AbstractApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex) {
+        log.error("Unexpected error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiErrorResponse.of("INTERNAL_ERROR", "An unexpected error occurred", null, currentRequestId()));
     }
@@ -61,7 +65,7 @@ public abstract class AbstractApiExceptionHandler {
                 .body(ApiErrorResponse.of("INVALID_PARAMETER", "Invalid parameter value", ex.getName(), currentRequestId()));
     }
 
-    private String currentRequestId() {
+    protected String currentRequestId() {
         String requestId = MDC.get(REQUEST_ID_MDC_KEY);
         return requestId != null ? requestId : "req_" + java.util.UUID.randomUUID();
     }
